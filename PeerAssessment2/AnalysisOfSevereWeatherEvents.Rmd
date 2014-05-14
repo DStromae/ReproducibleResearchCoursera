@@ -129,7 +129,6 @@ Scale the property damage variable into a new variable, `propertyDamage`.
 * Else leave `propdmg` as-is
 
 ```{r}
-D[, .N, propdmgexp][order(N, decreasing=TRUE)]
 D <- D[, propdmgexp := toupper(propdmgexp)]
 D <- D[, propertyDamage := ifelse(propdmgexp == "B", propdmg * 1E9, ifelse(propdmgexp == "M", propdmg * 1E6, ifelse(propdmgexp == "K", propdmg * 1E3, ifelse(propdmgexp == "H", propdmg * 1E2, propdmg))))]
 summary(D$propertyDamage)
@@ -143,7 +142,6 @@ Scale the crop damage variable into a new variable, `cropDamage`.
 * Else leave `cropdmg` as-is
 
 ```{r}
-D[, .N, cropdmgexp][order(N, decreasing=TRUE)]
 D <- D[, cropdmgexp := toupper(cropdmgexp)]
 D <- D[, cropDamage := ifelse(cropdmgexp == "B", cropdmg * 1E9, ifelse(cropdmgexp == "M", cropdmg * 1E6, ifelse(cropdmgexp == "K", cropdmg * 1E3, cropdmg)))]
 summary(D$cropDamage)
@@ -159,6 +157,8 @@ The number of unique values is too large to manage without some grouping.
 message(sprintf("Number of unique values of evtype: %.0d", length(unique(D$evtype))))
 ```
 
+Group event types to mimic the categories found in the [2009 Annual Summaries](http://www.ncdc.noaa.gov/oa/climate/sd/annsum2009.pdf) on page 3.
+
 `evtype` needs a lot of data cleaning.
 Particularly, values need to be grouped to resolve spelling variations.
 Also, records can have multiple events listed in the `evtype` variable.
@@ -167,46 +167,45 @@ Create indicator variables for common event types.
 Define a helper function `freqtab` to help with grouping `evtype` values.
 
 ```{r}
-indicator <- function (x) {
-	indicator <- grepl(x, D$evtype, ignore.case=TRUE)
-	show(unique(D[indicator, evtype]))
+indicator <- function (regex) {
+	indicator <- grepl(regex, D$evtype, ignore.case=TRUE)
+	uniqueEventTypes <- unique(D[indicator, evtype])
+	show(uniqueEventTypes[order(uniqueEventTypes)])
 	indicator
 }
 ```
 
-Create an indicator for variations of **Wind**.
+Create an indicators for variations of **Lightning**, **Tornado**, **Thunderstorm Wind**, and **Hail**.
+These fall into the top-level category of **Convection**.
 
 ```{r}
-regex <- "(WIND)|(WND)"
-D <- D[, eventWind := indicator(regex)]
+regexLightning <- "\\bL\\S+?G\\b"
+regexTornado <- "(NADO)|(\\bTOR\\S+?O\\b|(\\bFUN))"
+regexThunderstormWind <- "(WIND)|(WND)"
+regexHail <- "HAIL"
+D <- D[, eventConvection := indicator(paste(regexLightning, regexTornado, regexThunderstormWind, regexHail, sep="|"))]
 ```
 
-Create an indicator for variations of **Hail**.
+Create an indicators for variations of **Cold** and **Heat**.
+These fall into the top-level category of **Extreme Temperatures**.
 
 ```{r}
-regex <- "HAIL"
-D <- D[, eventHail := indicator(regex)]
+regex <- "COLD"
+D <- D[, eventCold := indicator(regex)]
+regex <- "HEAT"
+D <- D[, eventHeat := indicator(regex)]
+D <- D[, eventExtremeTemp := eventCold == TRUE | eventHeat == TRUE]
 ```
 
-Create an indicator for variations of **Flood**.
+Create an indicators for variations of **Flash Flood** and **River Flood**.
+These fall into the top-level category of **Flood**.
 
 ```{r}
-regex <- "FLOOD"
-D <- D[, eventFlood := indicator(regex)]
-```
-
-Create an indicator for variations of **Tornado**.
-
-```{r}
-regex <- "(NADO)|(\\bTOR\\S+?O\\b)"
-D <- D[, eventTornado := indicator(regex)]
-```
-
-Create an indicator for variations of **Lightning**.
-
-```{r}
-regex <- "\\bL\\S+?G\\b"
-D <- D[, eventLightning := indicator(regex)]
+regex <- "FLASH"
+D <- D[, eventFlashFlood := indicator(regex)]
+regex <- "(\\bFLO\\S+?OD\\b)"
+D <- D[, eventRiverFlood := indicator(regex) & eventFlashFlood == FALSE]
+D <- D[, eventFlood := eventFlashFlood == TRUE | eventRiverFlood == TRUE]
 ```
 
 Create an indicator for variations of **Snow, Ice, Freeze, or Winter Weather**.
