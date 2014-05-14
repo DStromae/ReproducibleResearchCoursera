@@ -1,0 +1,248 @@
+# Analysis of Severe Weather Events
+
+> Title: Your document should have a title that **briefly** summarizes your data
+> analysis
+
+Peer assessment 2 assignment for Coursera course [Reproducible Research](Reproducible Research).
+
+
+## Synopsis
+
+> Synopsis: Immediately after the title, there should be a **synopsis** which
+> describes and summarizes your analysis in at **most 10 complete sentences**.
+
+**To be completed**
+
+> ## Introduction
+> 
+> Storms and other severe weather events can cause both public health and economic
+> problems for communities and municipalities. Many severe events can result in
+> fatalities, injuries, and property damage, and preventing such outcomes to the
+> extent possible is a key concern.
+> 
+> This project involves exploring the U.S. National Oceanic and Atmospheric
+> Administration's (NOAA) storm database. This database tracks characteristics of
+> major storms and weather events in the United States, including when and where
+> they occur, as well as estimates of any fatalities, injuries, and property
+> damage.
+> 
+> ### Questions
+> 
+> Your data analysis must address the following questions:
+> 
+> Across the United States, which types of events (as indicated in the `EVTYPE`
+> variable) are most harmful with respect to popuulation health?
+> 
+> Across the United States, which types of events have the greatest economic
+> consequences?
+> 
+> Consider writing your report as if it were to be read by a government or
+> municipal manager who might be responsible for preparing for severe weather
+> events and will need to prioritize resources for different types of events.
+> However, there is no need to make any specific recommendations in your report.
+
+
+## Data Processing
+
+> ## Data
+> 
+> The data for this assignment come in the form of a comma-separated-value file
+> compressed via the bzip2 algorithm to reduce its size. You can download the file
+> from the course web site:
+> 
+> [StormData](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+> [47Mb] There is also some documentation of the database available. Here you will
+> find how some of the variables are constructed/defined.
+> 
+> National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+> 
+> National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+> 
+> The events in the database start in the year 1950 and end in November 2011. In
+> the earlier years of the database there are generally fewer events recorded,
+> most likely due to a lack of good records. More recent years should be
+> considered more complete.
+
+> There should be a section titled **Data Processing** which describes (in words
+> and code) how the data were loaded into R and processed for analysis. In
+> particular, your analysis must start from the raw CSV file containing the data.
+> You cannot do any preprocessing outside the document. If preprocessing is time-
+> consuming you may consider using the `cache = TRUE` option for certain code
+> chunks.
+
+Load packages.
+  
+```{r}
+packages <- c("data.table", "ggplot2", "xtable")
+sapply(packages, require, character.only=TRUE, quietly=TRUE)
+```
+
+Fix URL reading for knitr. See [Stackoverflow](http://stackoverflow.com/a/20003380).
+
+```{r}
+setInternet2(TRUE)
+```
+
+Download the storm data documentation files.
+
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
+f <- file.path(getwd(), "StormDataDocumentation.pdf")
+download.file(url, f, mode="wb")
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf"
+f <- file.path(getwd(), "StormEventsFAQ.pdf")
+download.file(url, f, mode="wb")
+```
+
+Download the zipped storm data file.
+
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+f <- file.path(getwd(), "StormData.csv.bz2")
+download.file(url, f, mode="wb")
+```
+
+Unzip the data file.
+
+```{r}
+executable <- file.path("C:", "Program Files (x86)", "7-Zip", "7z.exe")
+parameters <- "x"
+switch <- "-aoa"
+cmd <- paste(paste0("\"", executable, "\""), parameters, paste0("\"", f, "\""), switch)
+cmd
+system(cmd)
+```
+
+
+Read the CSV file as a data frame.
+Then convert to a data table.
+
+```{r}
+D <- read.csv(f, stringsAsFactors=FALSE)
+D <- data.table(D)
+```
+
+
+### Data cleaning
+
+Rename the variables to lowercase for ease of coding.
+
+```{r}
+old <- names(D)
+new <- tolower(old)
+setnames(D, old, new)
+```
+
+Convert the `bgn_date` character class variable to a date class variable.
+
+```{r}
+bgn_date <- strsplit(D$bgn_date, "[^[:digit:]]")
+bgn_date <- unlist(bgn_date)
+bgn_date <- as.numeric(bgn_date)
+bgn_date <- matrix(bgn_date, nrow=nrow(D), byrow=TRUE)
+dateStr <- sprintf("%4d%02d%02d", bgn_date[, 3], bgn_date[, 1], bgn_date[, 2])
+D <- D[, beginDate := as.Date(dateStr, format="%Y%m%d")]
+```
+
+List the number of records of each `evtype`.
+Order the event types by most prevalent to least.
+
+```{r}
+D[, .N, evtype][order(N, decreasing=TRUE)]
+```
+
+`evtype` needs a lot of data cleaning.
+Particularly, values need to be grouped to resolve spelling variations.
+Also, records can have multiple events listed in the `evtype` variable.
+Create indicator variables for the most common event types.
+
+Define helper function `freqtab` to help with grouping `evtype` values.
+
+```{r}
+freqtab <- function (x) {
+  print(D[grepl(x, evtype, ignore.case=TRUE), .N, evtype][order(N, decreasing=TRUE)], nrow=Inf)
+}
+```
+
+Create an indicator for variations of **Wind**.
+
+```{r}
+regex <- "WIND"
+freqtab(regex)
+D <- D[, isWind := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Hail**.
+
+```{r}
+regex <- "HAIL"
+freqtab(regex)
+D <- D[, isHail := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Flood**.
+
+```{r}
+regex <- "FLOOD"
+freqtab(regex)
+D <- D[, isFlood := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Tornado**.
+
+```{r}
+regex <- "TORNADO"
+freqtab(regex)
+D <- D[, isTornado := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Lightning**.
+
+```{r}
+regex <- "\\bL\\S+?G\\b"
+freqtab(regex)
+D <- D[, isLightning := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Snow**.
+
+```{r}
+regex <- "SNOW"
+freqtab(regex)
+D <- D[, isSnow := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Rain**.
+
+```{r}
+regex <- "RAIN"
+freqtab(regex)
+D <- D[, isRain := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+Create an indicator for variations of **Winter Weather or Winter Storm**.
+
+```{r}
+regex <- "WINTER"
+freqtab(regex)
+D <- D[, isWinter := grepl(regex, evtype, ignore.case=TRUE)]
+```
+
+```{r}
+groupby <- expression(list(isWind, isHail, isFlood, isTornado, isLightning, isSnow, isRain, isWinter))
+D[, .N, eval(groupby)][order(N, decreasing=TRUE)]
+where <- expression(isWind == FALSE & isHail == FALSE & isFlood == FALSE & isTornado == FALSE & isLightning == FALSE & isSnow == FALSE & isRain == FALSE & isWinter == FALSE)
+print(D[eval(where), .N, evtype][order(N)], nrow=Inf)
+```
+
+
+
+## Results
+
+> The analysis document must have **at least one figure containing as plot**.
+> 
+> Your analyis must have **no more than three figures**. Figures may have multiple
+> plots in them (i.e. panel plots), but there cannot be more than three figures
+> total.
+> 
+
