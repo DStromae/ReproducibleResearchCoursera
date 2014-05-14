@@ -120,6 +120,36 @@ dateStr <- sprintf("%4d%02d%02d", bgn_date[, 3], bgn_date[, 1], bgn_date[, 2])
 D <- D[, beginDate := as.Date(dateStr, format="%Y%m%d")]
 ```
 
+Scale the property damage variable into a new variable, `propertyDamage`.
+
+* If `propdmgexp` = `B`, then multiply `propdmg` by 1,000,000,000
+* Else if `propdmgexp` = `M`, then multiply `propdmg` by 1,000,000
+* Else if `propdmgexp` = `K`, then multiply `propdmg` by 1,000
+* Else if `propdmgexp` = `H`, then multiply `propdmg` by 100
+* Else leave `propdmg` as-is
+
+```{r}
+D[, .N, propdmgexp][order(N, decreasing=TRUE)]
+D <- D[, propdmgexp := toupper(propdmgexp)]
+D <- D[, propertyDamage := ifelse(propdmgexp == "B", propdmg * 1E9, ifelse(propdmgexp == "M", propdmg * 1E6, ifelse(propdmgexp == "K", propdmg * 1E3, ifelse(propdmgexp == "H", propdmg * 1E2, propdmg))))]
+summary(D$propertyDamage)
+```
+
+Scale the crop damage variable into a new variable, `cropDamage`.
+
+* If `cropdmgexp` = `B`, then multiply `cropdmg` by 1,000,000,000
+* Else if `cropdmgexp` = `M`, then multiply `cropdmg` by 1,000,000
+* Else if `cropdmgexp` = `K`, then multiply `cropdmg` by 1,000
+* Else leave `cropdmg` as-is
+
+```{r}
+D[, .N, cropdmgexp][order(N, decreasing=TRUE)]
+D <- D[, cropdmgexp := toupper(cropdmgexp)]
+D <- D[, cropDamage := ifelse(cropdmgexp == "B", cropdmg * 1E9, ifelse(cropdmgexp == "M", cropdmg * 1E6, ifelse(cropdmgexp == "K", cropdmg * 1E3, cropdmg)))]
+summary(D$cropDamage)
+```
+
+
 #### Group event types
 
 List the number of unique values of `evtype`.
@@ -213,9 +243,16 @@ Create an **Other** indicator for ungrouped event types.
 D <- D[, eventOther := eventWind == FALSE & eventHail == FALSE & eventFlood == FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & eventRain == FALSE]
 ```
 
+According to the [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf), 
+
+> An Event is an individual type of storm event. (Thunderstorm Wind, Hail,
+> Tornado and Flood are events)
+
+A crosstabulation for these events is below.
+
 ```{r}
-groupby <- expression(list(eventWind, eventHail, eventFlood, eventTornado, eventLightning, eventSnow, eventRain, eventOther))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado, eventLightning, eventSnow, eventRain, eventOther, decreasing=TRUE)]
+groupby <- expression(list(eventWind, eventHail, eventTornado, eventFlood))
+D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, decreasing=TRUE)]
 ```
 
 

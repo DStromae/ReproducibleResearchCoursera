@@ -210,51 +210,15 @@ Administration&#39;s (NOAA) storm database. This database tracks characteristics
 major storms and weather events in the United States, including when and where
 they occur, as well as estimates of any fatalities, injuries, and property
 damage.</p>
-
-<h3>Questions</h3>
-
-<p>Your data analysis must address the following questions:</p>
-
-<p>Across the United States, which types of events (as indicated in the <code>EVTYPE</code>
-variable) are most harmful with respect to popuulation health?</p>
-
-<p>Across the United States, which types of events have the greatest economic
-consequences?</p>
-
-<p>Consider writing your report as if it were to be read by a government or
-municipal manager who might be responsible for preparing for severe weather
-events and will need to prioritize resources for different types of events.
-However, there is no need to make any specific recommendations in your report.</p>
 </blockquote>
 
 <h2>Data Processing</h2>
 
 <blockquote>
-<h2>Data</h2>
-
-<p>The data for this assignment come in the form of a comma-separated-value file
-compressed via the bzip2 algorithm to reduce its size. You can download the file
-from the course web site:</p>
-
-<p><a href="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2">StormData</a>
-[47Mb] There is also some documentation of the database available. Here you will
-find how some of the variables are constructed/defined.</p>
-
-<p>National Weather Service <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a></p>
-
-<p>National Climatic Data Center Storm Events <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf">FAQ</a></p>
-
 <p>The events in the database start in the year 1950 and end in November 2011. In
 the earlier years of the database there are generally fewer events recorded,
 most likely due to a lack of good records. More recent years should be
 considered more complete.</p>
-
-<p>There should be a section titled <strong>Data Processing</strong> which describes (in words
-and code) how the data were loaded into R and processed for analysis. In
-particular, your analysis must start from the raw CSV file containing the data.
-You cannot do any preprocessing outside the document. If preprocessing is time-
-consuming you may consider using the <code>cache = TRUE</code> option for certain code
-chunks.</p>
 </blockquote>
 
 <p>Load packages.</p>
@@ -278,6 +242,11 @@ sapply(packages, require, character.only = TRUE, quietly = TRUE)
 
 <p>Download the storm data documentation files.</p>
 
+<ul>
+<li>National Weather Service <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a></li>
+<li>National Climatic Data Center Storm Events <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf">FAQ</a></li>
+</ul>
+
 <pre><code class="r">url &lt;- &quot;https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf&quot;
 f &lt;- file.path(getwd(), &quot;StormDataDocumentation.pdf&quot;)
 download.file(url, f, mode = &quot;wb&quot;)
@@ -286,7 +255,7 @@ f &lt;- file.path(getwd(), &quot;StormEventsFAQ.pdf&quot;)
 download.file(url, f, mode = &quot;wb&quot;)
 </code></pre>
 
-<p>Download the zipped storm data file.</p>
+<p>Download the zipped <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2">storm data file</a>.</p>
 
 <pre><code class="r">url &lt;- &quot;https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2&quot;
 f &lt;- file.path(getwd(), &quot;StormData.csv.bz2&quot;)
@@ -373,6 +342,52 @@ bgn_date &lt;- as.numeric(bgn_date)
 bgn_date &lt;- matrix(bgn_date, nrow = nrow(D), byrow = TRUE)
 dateStr &lt;- sprintf(&quot;%4d%02d%02d&quot;, bgn_date[, 3], bgn_date[, 1], bgn_date[, 2])
 D &lt;- D[, `:=`(beginDate, as.Date(dateStr, format = &quot;%Y%m%d&quot;))]
+</code></pre>
+
+<p>Scale the property damage variable into a new variable, <code>propertyDamage</code>.</p>
+
+<ul>
+<li>If <code>propdmgexp</code> = <code>B</code>, then multiply <code>propdmg</code> by 1,000,000,000</li>
+<li>Else if <code>propdmgexp</code> = <code>M</code>, then multiply <code>propdmg</code> by 1,000,000</li>
+<li>Else if <code>propdmgexp</code> = <code>K</code>, then multiply <code>propdmg</code> by 1,000</li>
+<li>Else if <code>propdmgexp</code> = <code>H</code>, then multiply <code>propdmg</code> by 100</li>
+<li>Else leave <code>propdmg</code> as-is</li>
+</ul>
+
+<pre><code class="r">D[, .N, propdmgexp][order(N, decreasing = TRUE)]
+</code></pre>
+
+<pre><code>##     propdmgexp      N
+##  1:            465934
+##  2:          K 424665
+##  3:          M  11330
+##  4:          0    216
+##  5:          B     40
+##  6:          5     28
+##  7:          1     25
+##  8:          2     13
+##  9:          ?      8
+## 10:          m      7
+## 11:          H      6
+## 12:          +      5
+## 13:          7      5
+## 14:          6      4
+## 15:          4      4
+## 16:          3      4
+## 17:          h      1
+## 18:          -      1
+## 19:          8      1
+</code></pre>
+
+<pre><code class="r">D &lt;- D[, `:=`(propdmgexp, toupper(propdmgexp))]
+D &lt;- D[, `:=`(propertyDamage, ifelse(propdmgexp == &quot;B&quot;, propdmg * 1e+09, ifelse(propdmgexp == 
+    &quot;M&quot;, propdmg * 1e+06, ifelse(propdmgexp == &quot;K&quot;, propdmg * 1000, ifelse(propdmgexp == 
+    &quot;H&quot;, propdmg * 100, propdmg)))))]
+summary(D$propertyDamage)
+</code></pre>
+
+<pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 0.00e+00 0.00e+00 0.00e+00 4.74e+05 5.00e+02 1.15e+11
 </code></pre>
 
 <h4>Group event types</h4>
@@ -1040,65 +1055,50 @@ message(sprintf(&quot;Number of unique event types that don&#39;t satisfy any on
     eventRain == FALSE)]
 </code></pre>
 
-<pre><code class="r">groupby &lt;- expression(list(eventWind, eventHail, eventFlood, eventTornado, eventLightning, 
-    eventSnow, eventRain, eventOther))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado, 
-    eventLightning, eventSnow, eventRain, eventOther, decreasing = TRUE)]
+<p>According to the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf">FAQ</a>, </p>
+
+<blockquote>
+<p>An Event is an individual type of storm event. (Thunderstorm Wind, Hail,
+Tornado and Flood are events)</p>
+</blockquote>
+
+<p>A crosstabulation for these events is below.</p>
+
+<pre><code class="r">groupby &lt;- expression(list(eventWind, eventHail, eventTornado, eventFlood))
+D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, 
+    decreasing = TRUE)]
 </code></pre>
 
-<pre><code>##     eventWind eventHail eventFlood eventTornado eventLightning eventSnow
-##  1:      TRUE      TRUE      FALSE         TRUE          FALSE     FALSE
-##  2:      TRUE      TRUE      FALSE        FALSE          FALSE     FALSE
-##  3:      TRUE     FALSE       TRUE        FALSE          FALSE      TRUE
-##  4:      TRUE     FALSE       TRUE        FALSE          FALSE     FALSE
-##  5:      TRUE     FALSE       TRUE        FALSE          FALSE     FALSE
-##  6:      TRUE     FALSE      FALSE        FALSE           TRUE     FALSE
-##  7:      TRUE     FALSE      FALSE        FALSE          FALSE      TRUE
-##  8:      TRUE     FALSE      FALSE        FALSE          FALSE     FALSE
-##  9:      TRUE     FALSE      FALSE        FALSE          FALSE     FALSE
-## 10:     FALSE      TRUE       TRUE        FALSE          FALSE     FALSE
-## 11:     FALSE      TRUE      FALSE        FALSE          FALSE      TRUE
-## 12:     FALSE      TRUE      FALSE        FALSE          FALSE     FALSE
-## 13:     FALSE     FALSE       TRUE        FALSE          FALSE      TRUE
-## 14:     FALSE     FALSE       TRUE        FALSE          FALSE     FALSE
-## 15:     FALSE     FALSE       TRUE        FALSE          FALSE     FALSE
-## 16:     FALSE     FALSE      FALSE         TRUE          FALSE     FALSE
-## 17:     FALSE     FALSE      FALSE        FALSE           TRUE     FALSE
-## 18:     FALSE     FALSE      FALSE        FALSE           TRUE     FALSE
-## 19:     FALSE     FALSE      FALSE        FALSE          FALSE      TRUE
-## 20:     FALSE     FALSE      FALSE        FALSE          FALSE      TRUE
-## 21:     FALSE     FALSE      FALSE        FALSE          FALSE     FALSE
-## 22:     FALSE     FALSE      FALSE        FALSE          FALSE     FALSE
-##     eventWind eventHail eventFlood eventTornado eventLightning eventSnow
-##     eventRain eventOther      N
-##  1:     FALSE      FALSE      1
-##  2:     FALSE      FALSE   1123
-##  3:     FALSE      FALSE      1
-##  4:      TRUE      FALSE      8
-##  5:     FALSE      FALSE      9
-##  6:     FALSE      FALSE     12
-##  7:     FALSE      FALSE     27
-##  8:      TRUE      FALSE     16
-##  9:     FALSE      FALSE 363706
-## 10:     FALSE      FALSE      1
-## 11:     FALSE      FALSE      1
-## 12:     FALSE      FALSE 289275
-## 13:     FALSE      FALSE     17
-## 14:      TRUE      FALSE     20
-## 15:     FALSE      FALSE  82675
-## 16:     FALSE      FALSE  60707
-## 17:      TRUE      FALSE      3
-## 18:     FALSE      FALSE  15765
-## 19:      TRUE      FALSE    345
-## 20:     FALSE      FALSE  40975
-## 21:      TRUE      FALSE  11849
-## 22:     FALSE       TRUE  35761
-##     eventRain eventOther      N
+<pre><code>##    eventWind eventHail eventTornado eventFlood      N
+## 1:      TRUE      TRUE         TRUE      FALSE      1
+## 2:      TRUE      TRUE        FALSE      FALSE   1123
+## 3:      TRUE     FALSE        FALSE       TRUE     18
+## 4:      TRUE     FALSE        FALSE      FALSE 363761
+## 5:     FALSE      TRUE        FALSE       TRUE      1
+## 6:     FALSE      TRUE        FALSE      FALSE 289276
+## 7:     FALSE     FALSE         TRUE      FALSE  60707
+## 8:     FALSE     FALSE        FALSE       TRUE  82712
+## 9:     FALSE     FALSE        FALSE      FALSE 104698
 </code></pre>
 
 <h2>Results</h2>
 
 <blockquote>
+<h3>Questions</h3>
+
+<p>Your data analysis must address the following questions:</p>
+
+<p>Across the United States, which types of events (as indicated in the <code>EVTYPE</code>
+variable) are most harmful with respect to popuulation health?</p>
+
+<p>Across the United States, which types of events have the greatest economic
+consequences?</p>
+
+<p>Consider writing your report as if it were to be read by a government or
+municipal manager who might be responsible for preparing for severe weather
+events and will need to prioritize resources for different types of events.
+However, there is no need to make any specific recommendations in your report.</p>
+
 <p>The analysis document must have <strong>at least one figure containing as plot</strong>.</p>
 
 <p>Your analyis must have <strong>no more than three figures</strong>. Figures may have multiple

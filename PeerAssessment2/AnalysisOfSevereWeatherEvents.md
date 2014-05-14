@@ -26,49 +26,14 @@ Peer assessment 2 assignment for Coursera course [Reproducible Research](Reprodu
 > they occur, as well as estimates of any fatalities, injuries, and property
 > damage.
 > 
-> ### Questions
-> 
-> Your data analysis must address the following questions:
-> 
-> Across the United States, which types of events (as indicated in the `EVTYPE`
-> variable) are most harmful with respect to popuulation health?
-> 
-> Across the United States, which types of events have the greatest economic
-> consequences?
-> 
-> Consider writing your report as if it were to be read by a government or
-> municipal manager who might be responsible for preparing for severe weather
-> events and will need to prioritize resources for different types of events.
-> However, there is no need to make any specific recommendations in your report.
 
 
 ## Data Processing
 
-> ## Data
-> 
-> The data for this assignment come in the form of a comma-separated-value file
-> compressed via the bzip2 algorithm to reduce its size. You can download the file
-> from the course web site:
-> 
-> [StormData](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
-> [47Mb] There is also some documentation of the database available. Here you will
-> find how some of the variables are constructed/defined.
-> 
-> National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
-> 
-> National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
-> 
 > The events in the database start in the year 1950 and end in November 2011. In
 > the earlier years of the database there are generally fewer events recorded,
 > most likely due to a lack of good records. More recent years should be
 > considered more complete.
-
-> There should be a section titled **Data Processing** which describes (in words
-> and code) how the data were loaded into R and processed for analysis. In
-> particular, your analysis must start from the raw CSV file containing the data.
-> You cannot do any preprocessing outside the document. If preprocessing is time-
-> consuming you may consider using the `cache = TRUE` option for certain code
-> chunks.
 
 Load packages.
   
@@ -98,6 +63,9 @@ setInternet2(TRUE)
 
 Download the storm data documentation files.
 
+* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
 
 ```r
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
@@ -109,7 +77,7 @@ download.file(url, f, mode = "wb")
 ```
 
 
-Download the zipped storm data file.
+Download the zipped [storm data file](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).
 
 
 ```r
@@ -214,6 +182,57 @@ bgn_date <- matrix(bgn_date, nrow = nrow(D), byrow = TRUE)
 dateStr <- sprintf("%4d%02d%02d", bgn_date[, 3], bgn_date[, 1], bgn_date[, 2])
 D <- D[, `:=`(beginDate, as.Date(dateStr, format = "%Y%m%d"))]
 ```
+
+
+Scale the property damage variable into a new variable, `propertyDamage`.
+
+* If `propdmgexp` = `B`, then multiply `propdmg` by 1,000,000,000
+* Else if `propdmgexp` = `M`, then multiply `propdmg` by 1,000,000
+* Else if `propdmgexp` = `K`, then multiply `propdmg` by 1,000
+* Else if `propdmgexp` = `H`, then multiply `propdmg` by 100
+* Else leave `propdmg` as-is
+
+
+```r
+D[, .N, propdmgexp][order(N, decreasing = TRUE)]
+```
+
+```
+##     propdmgexp      N
+##  1:            465934
+##  2:          K 424665
+##  3:          M  11330
+##  4:          0    216
+##  5:          B     40
+##  6:          5     28
+##  7:          1     25
+##  8:          2     13
+##  9:          ?      8
+## 10:          m      7
+## 11:          H      6
+## 12:          +      5
+## 13:          7      5
+## 14:          6      4
+## 15:          4      4
+## 16:          3      4
+## 17:          h      1
+## 18:          -      1
+## 19:          8      1
+```
+
+```r
+D <- D[, `:=`(propdmgexp, toupper(propdmgexp))]
+D <- D[, `:=`(propertyDamage, ifelse(propdmgexp == "B", propdmg * 1e+09, ifelse(propdmgexp == 
+    "M", propdmg * 1e+06, ifelse(propdmgexp == "K", propdmg * 1000, ifelse(propdmgexp == 
+    "H", propdmg * 100, propdmg)))))]
+summary(D$propertyDamage)
+```
+
+```
+##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 0.00e+00 0.00e+00 0.00e+00 4.74e+05 5.00e+02 1.15e+11
+```
+
 
 
 #### Group event types
@@ -927,63 +946,31 @@ D <- D[, `:=`(eventOther, eventWind == FALSE & eventHail == FALSE & eventFlood =
 ```
 
 
+According to the [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf), 
+
+> An Event is an individual type of storm event. (Thunderstorm Wind, Hail,
+> Tornado and Flood are events)
+
+A crosstabulation for these events is below.
+
 
 ```r
-groupby <- expression(list(eventWind, eventHail, eventFlood, eventTornado, eventLightning, 
-    eventSnow, eventRain, eventOther))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado, 
-    eventLightning, eventSnow, eventRain, eventOther, decreasing = TRUE)]
+groupby <- expression(list(eventWind, eventHail, eventTornado, eventFlood))
+D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, 
+    decreasing = TRUE)]
 ```
 
 ```
-##     eventWind eventHail eventFlood eventTornado eventLightning eventSnow
-##  1:      TRUE      TRUE      FALSE         TRUE          FALSE     FALSE
-##  2:      TRUE      TRUE      FALSE        FALSE          FALSE     FALSE
-##  3:      TRUE     FALSE       TRUE        FALSE          FALSE      TRUE
-##  4:      TRUE     FALSE       TRUE        FALSE          FALSE     FALSE
-##  5:      TRUE     FALSE       TRUE        FALSE          FALSE     FALSE
-##  6:      TRUE     FALSE      FALSE        FALSE           TRUE     FALSE
-##  7:      TRUE     FALSE      FALSE        FALSE          FALSE      TRUE
-##  8:      TRUE     FALSE      FALSE        FALSE          FALSE     FALSE
-##  9:      TRUE     FALSE      FALSE        FALSE          FALSE     FALSE
-## 10:     FALSE      TRUE       TRUE        FALSE          FALSE     FALSE
-## 11:     FALSE      TRUE      FALSE        FALSE          FALSE      TRUE
-## 12:     FALSE      TRUE      FALSE        FALSE          FALSE     FALSE
-## 13:     FALSE     FALSE       TRUE        FALSE          FALSE      TRUE
-## 14:     FALSE     FALSE       TRUE        FALSE          FALSE     FALSE
-## 15:     FALSE     FALSE       TRUE        FALSE          FALSE     FALSE
-## 16:     FALSE     FALSE      FALSE         TRUE          FALSE     FALSE
-## 17:     FALSE     FALSE      FALSE        FALSE           TRUE     FALSE
-## 18:     FALSE     FALSE      FALSE        FALSE           TRUE     FALSE
-## 19:     FALSE     FALSE      FALSE        FALSE          FALSE      TRUE
-## 20:     FALSE     FALSE      FALSE        FALSE          FALSE      TRUE
-## 21:     FALSE     FALSE      FALSE        FALSE          FALSE     FALSE
-## 22:     FALSE     FALSE      FALSE        FALSE          FALSE     FALSE
-##     eventWind eventHail eventFlood eventTornado eventLightning eventSnow
-##     eventRain eventOther      N
-##  1:     FALSE      FALSE      1
-##  2:     FALSE      FALSE   1123
-##  3:     FALSE      FALSE      1
-##  4:      TRUE      FALSE      8
-##  5:     FALSE      FALSE      9
-##  6:     FALSE      FALSE     12
-##  7:     FALSE      FALSE     27
-##  8:      TRUE      FALSE     16
-##  9:     FALSE      FALSE 363706
-## 10:     FALSE      FALSE      1
-## 11:     FALSE      FALSE      1
-## 12:     FALSE      FALSE 289275
-## 13:     FALSE      FALSE     17
-## 14:      TRUE      FALSE     20
-## 15:     FALSE      FALSE  82675
-## 16:     FALSE      FALSE  60707
-## 17:      TRUE      FALSE      3
-## 18:     FALSE      FALSE  15765
-## 19:      TRUE      FALSE    345
-## 20:     FALSE      FALSE  40975
-## 21:      TRUE      FALSE  11849
-## 22:     FALSE       TRUE  35761
-##     eventRain eventOther      N
+##    eventWind eventHail eventTornado eventFlood      N
+## 1:      TRUE      TRUE         TRUE      FALSE      1
+## 2:      TRUE      TRUE        FALSE      FALSE   1123
+## 3:      TRUE     FALSE        FALSE       TRUE     18
+## 4:      TRUE     FALSE        FALSE      FALSE 363761
+## 5:     FALSE      TRUE        FALSE       TRUE      1
+## 6:     FALSE      TRUE        FALSE      FALSE 289276
+## 7:     FALSE     FALSE         TRUE      FALSE  60707
+## 8:     FALSE     FALSE        FALSE       TRUE  82712
+## 9:     FALSE     FALSE        FALSE      FALSE 104698
 ```
 
 
@@ -991,6 +978,21 @@ D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado,
 
 ## Results
 
+> ### Questions
+> 
+> Your data analysis must address the following questions:
+> 
+> Across the United States, which types of events (as indicated in the `EVTYPE`
+> variable) are most harmful with respect to popuulation health?
+> 
+> Across the United States, which types of events have the greatest economic
+> consequences?
+> 
+> Consider writing your report as if it were to be read by a government or
+> municipal manager who might be responsible for preparing for severe weather
+> events and will need to prioritize resources for different types of events.
+> However, there is no need to make any specific recommendations in your report.
+> 
 > The analysis document must have **at least one figure containing as plot**.
 > 
 > Your analyis must have **no more than three figures**. Figures may have multiple
