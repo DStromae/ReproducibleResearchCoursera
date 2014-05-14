@@ -83,9 +83,13 @@ Fix URL reading for knitr. See [Stackoverflow](http://stackoverflow.com/a/200033
 setInternet2(TRUE)
 ```
 
+### Download and unzip files
+
+**Don't run this subsection during testing**
+
 Download the storm data documentation files.
 
-```{r}
+```{r, eval=FALSE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
 f <- file.path(getwd(), "StormDataDocumentation.pdf")
 download.file(url, f, mode="wb")
@@ -96,7 +100,7 @@ download.file(url, f, mode="wb")
 
 Download the zipped storm data file.
 
-```{r}
+```{r, eval=FALSE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 f <- file.path(getwd(), "StormData.csv.bz2")
 download.file(url, f, mode="wb")
@@ -104,7 +108,7 @@ download.file(url, f, mode="wb")
 
 Unzip the data file.
 
-```{r}
+```{r, eval=FALSE}
 executable <- file.path("C:", "Program Files (x86)", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
@@ -114,16 +118,20 @@ system(cmd)
 ```
 
 
+### Read data file
+
 Read the CSV file as a data frame.
 Then convert to a data table.
 
 ```{r}
+f <- file.path(getwd(), "StormData.csv.bz2")
 D <- read.csv(f, stringsAsFactors=FALSE)
 D <- data.table(D)
+str(D)
 ```
 
 
-### Data cleaning
+### Clean data
 
 Rename the variables to lowercase for ease of coding.
 
@@ -144,95 +152,102 @@ dateStr <- sprintf("%4d%02d%02d", bgn_date[, 3], bgn_date[, 1], bgn_date[, 2])
 D <- D[, beginDate := as.Date(dateStr, format="%Y%m%d")]
 ```
 
-List the number of records of each `evtype`.
-Order the event types by most prevalent to least.
+#### Group event types
+
+List the number of unique values of `evtype`.
+The number of unique values is too large to manage without some grouping.
 
 ```{r}
-D[, .N, evtype][order(N, decreasing=TRUE)]
+message(sprintf("Number of unique values of evtype: %.0d", length(unique(D$evtype))))
 ```
 
 `evtype` needs a lot of data cleaning.
 Particularly, values need to be grouped to resolve spelling variations.
 Also, records can have multiple events listed in the `evtype` variable.
-Create indicator variables for the most common event types.
+Create indicator variables for common event types.
 
-Define helper function `freqtab` to help with grouping `evtype` values.
+Define a helper function `freqtab` to help with grouping `evtype` values.
 
 ```{r}
-freqtab <- function (x) {
-  print(D[grepl(x, evtype, ignore.case=TRUE), .N, evtype][order(N, decreasing=TRUE)], nrow=Inf)
+indicator <- function (x) {
+	indicator <- grepl(x, D$evtype, ignore.case=TRUE)
+	show(unique(D[indicator, evtype]))
+	indicator
 }
 ```
 
 Create an indicator for variations of **Wind**.
 
 ```{r}
-regex <- "WIND"
-freqtab(regex)
-D <- D[, isWind := grepl(regex, evtype, ignore.case=TRUE)]
+regex <- "(WIND)|(WND)"
+D <- D[, eventWind := indicator(regex)]
 ```
 
 Create an indicator for variations of **Hail**.
 
 ```{r}
 regex <- "HAIL"
-freqtab(regex)
-D <- D[, isHail := grepl(regex, evtype, ignore.case=TRUE)]
+D <- D[, eventHail := indicator(regex)]
 ```
 
 Create an indicator for variations of **Flood**.
 
 ```{r}
 regex <- "FLOOD"
-freqtab(regex)
-D <- D[, isFlood := grepl(regex, evtype, ignore.case=TRUE)]
+D <- D[, eventFlood := indicator(regex)]
 ```
 
 Create an indicator for variations of **Tornado**.
 
 ```{r}
-regex <- "TORNADO"
-freqtab(regex)
-D <- D[, isTornado := grepl(regex, evtype, ignore.case=TRUE)]
+regex <- "(NADO)|(\\bTOR\\S+?O\\b)"
+D <- D[, eventTornado := indicator(regex)]
 ```
 
 Create an indicator for variations of **Lightning**.
 
 ```{r}
 regex <- "\\bL\\S+?G\\b"
-freqtab(regex)
-D <- D[, isLightning := grepl(regex, evtype, ignore.case=TRUE)]
+D <- D[, eventLightning := indicator(regex)]
 ```
 
-Create an indicator for variations of **Snow**.
+Create an indicator for variations of **Snow, Ice, Freeze, or Winter Weather**.
 
 ```{r}
-regex <- "SNOW"
-freqtab(regex)
-D <- D[, isSnow := grepl(regex, evtype, ignore.case=TRUE)]
+regex <- "(SNOW)|(ICE)|(ICY)|(FREEZ)|(WINT)"
+D <- D[, eventSnow := indicator(regex)]
 ```
 
 Create an indicator for variations of **Rain**.
 
 ```{r}
 regex <- "RAIN"
-freqtab(regex)
-D <- D[, isRain := grepl(regex, evtype, ignore.case=TRUE)]
+D <- D[, eventRain := indicator(regex)]
 ```
 
-Create an indicator for variations of **Winter Weather or Winter Storm**.
+Calculate the proportion of records that don't satisfy any one of the defined indicators.
+Calculate the number of unique event types among these records.
+List the ungrouped unique event types.
 
 ```{r}
-regex <- "WINTER"
-freqtab(regex)
-D <- D[, isWinter := grepl(regex, evtype, ignore.case=TRUE)]
+where <- expression(eventWind == FALSE & eventHail == FALSE & eventFlood == FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & eventRain == FALSE)
+ungrouped <- D[eval(where), list(n = .N, prop = .N / nrow(D))]
+prop <- D[eval(where), .N / nrow(D)]
+message(sprintf("Number (%%) of records that don't satisfy any one of the defined indicators: %.0d (%.2f%%)", ungrouped$n, ungrouped$prop * 100))
+uniqueEvtype <- unique(D[eval(where), evtype])
+message(sprintf("Number of unique event types that don't satisfy any one of the defined indicators: %.0d", length(uniqueEvtype)))
+uniqueEvtype[order(uniqueEvtype)]
+```
+
+Create an **Other** indicator for ungrouped event types.
+
+```{r}
+D <- D[, eventOther := eventWind == FALSE & eventHail == FALSE & eventFlood == FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & eventRain == FALSE]
 ```
 
 ```{r}
-groupby <- expression(list(isWind, isHail, isFlood, isTornado, isLightning, isSnow, isRain, isWinter))
-D[, .N, eval(groupby)][order(N, decreasing=TRUE)]
-where <- expression(isWind == FALSE & isHail == FALSE & isFlood == FALSE & isTornado == FALSE & isLightning == FALSE & isSnow == FALSE & isRain == FALSE & isWinter == FALSE)
-print(D[eval(where), .N, evtype][order(N)], nrow=Inf)
+groupby <- expression(list(eventWind, eventHail, eventFlood, eventTornado, eventLightning, eventSnow, eventRain, eventOther))
+D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado, eventLightning, eventSnow, eventRain, eventOther, decreasing=TRUE)]
 ```
 
 
