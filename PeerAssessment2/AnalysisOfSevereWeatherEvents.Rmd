@@ -26,49 +26,14 @@ Peer assessment 2 assignment for Coursera course [Reproducible Research](Reprodu
 > they occur, as well as estimates of any fatalities, injuries, and property
 > damage.
 > 
-> ### Questions
-> 
-> Your data analysis must address the following questions:
-> 
-> Across the United States, which types of events (as indicated in the `EVTYPE`
-> variable) are most harmful with respect to popuulation health?
-> 
-> Across the United States, which types of events have the greatest economic
-> consequences?
-> 
-> Consider writing your report as if it were to be read by a government or
-> municipal manager who might be responsible for preparing for severe weather
-> events and will need to prioritize resources for different types of events.
-> However, there is no need to make any specific recommendations in your report.
 
 
 ## Data Processing
 
-> ## Data
-> 
-> The data for this assignment come in the form of a comma-separated-value file
-> compressed via the bzip2 algorithm to reduce its size. You can download the file
-> from the course web site:
-> 
-> [StormData](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
-> [47Mb] There is also some documentation of the database available. Here you will
-> find how some of the variables are constructed/defined.
-> 
-> National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
-> 
-> National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
-> 
 > The events in the database start in the year 1950 and end in November 2011. In
 > the earlier years of the database there are generally fewer events recorded,
 > most likely due to a lack of good records. More recent years should be
 > considered more complete.
-
-> There should be a section titled **Data Processing** which describes (in words
-> and code) how the data were loaded into R and processed for analysis. In
-> particular, your analysis must start from the raw CSV file containing the data.
-> You cannot do any preprocessing outside the document. If preprocessing is time-
-> consuming you may consider using the `cache = TRUE` option for certain code
-> chunks.
 
 Load packages.
   
@@ -89,6 +54,9 @@ setInternet2(TRUE)
 
 Download the storm data documentation files.
 
+* National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+* National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
 ```{r, eval=FALSE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
 f <- file.path(getwd(), "StormDataDocumentation.pdf")
@@ -98,7 +66,7 @@ f <- file.path(getwd(), "StormEventsFAQ.pdf")
 download.file(url, f, mode="wb")
 ```
 
-Download the zipped storm data file.
+Download the zipped [storm data file](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).
 
 ```{r, eval=FALSE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
@@ -254,6 +222,21 @@ D[, .N, eval(groupby)][order(eventWind, eventHail, eventFlood, eventTornado, eve
 
 ## Results
 
+> ### Questions
+> 
+> Your data analysis must address the following questions:
+> 
+> Across the United States, which types of events (as indicated in the `EVTYPE`
+> variable) are most harmful with respect to popuulation health?
+> 
+> Across the United States, which types of events have the greatest economic
+> consequences?
+> 
+> Consider writing your report as if it were to be read by a government or
+> municipal manager who might be responsible for preparing for severe weather
+> events and will need to prioritize resources for different types of events.
+> However, there is no need to make any specific recommendations in your report.
+> 
 > The analysis document must have **at least one figure containing as plot**.
 > 
 > Your analyis must have **no more than three figures**. Figures may have multiple
