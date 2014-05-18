@@ -264,7 +264,7 @@ download.file(url, f, mode = &quot;wb&quot;)
 
 <p>Unzip the data file.</p>
 
-<pre><code class="r">executable &lt;- file.path(&quot;C:&quot;, &quot;Program Files (x86)&quot;, &quot;7-Zip&quot;, &quot;7z.exe&quot;)
+<pre><code class="r">executable &lt;- file.path(&quot;C:&quot;, &quot;Program Files&quot;, &quot;7-Zip&quot;, &quot;7z.exe&quot;)
 parameters &lt;- &quot;x&quot;
 switch &lt;- &quot;-aoa&quot;
 cmd &lt;- paste(paste0(&quot;\&quot;&quot;, executable, &quot;\&quot;&quot;), parameters, paste0(&quot;\&quot;&quot;, f, &quot;\&quot;&quot;), 
@@ -275,7 +275,8 @@ system(cmd)
 
 <h3>Read data file</h3>
 
-<p>Read the CSV file as a data frame.
+<p>The data file (CSV format) is in the working directory.
+Read the CSV file as a data frame.
 Then convert to a data table.</p>
 
 <pre><code class="r">f &lt;- file.path(getwd(), &quot;StormData.csv.bz2&quot;)
@@ -354,33 +355,31 @@ D &lt;- D[, `:=`(beginDate, as.Date(dateStr, format = &quot;%Y%m%d&quot;))]
 <li>Else leave <code>propdmg</code> as-is</li>
 </ul>
 
-<pre><code class="r">D[, .N, propdmgexp][order(N, decreasing = TRUE)]
+<pre><code class="r">D &lt;- D[, `:=`(propdmgexp, toupper(propdmgexp))]
+D[, .N, propdmgexp]
 </code></pre>
 
 <pre><code>##     propdmgexp      N
-##  1:            465934
-##  2:          K 424665
-##  3:          M  11330
-##  4:          0    216
-##  5:          B     40
-##  6:          5     28
-##  7:          1     25
-##  8:          2     13
+##  1:          K 424665
+##  2:          M  11337
+##  3:            465934
+##  4:          B     40
+##  5:          +      5
+##  6:          0    216
+##  7:          5     28
+##  8:          6      4
 ##  9:          ?      8
-## 10:          m      7
-## 11:          H      6
-## 12:          +      5
-## 13:          7      5
-## 14:          6      4
-## 15:          4      4
-## 16:          3      4
-## 17:          h      1
-## 18:          -      1
-## 19:          8      1
+## 10:          4      4
+## 11:          2     13
+## 12:          3      4
+## 13:          H      7
+## 14:          7      5
+## 15:          -      1
+## 16:          1     25
+## 17:          8      1
 </code></pre>
 
-<pre><code class="r">D &lt;- D[, `:=`(propdmgexp, toupper(propdmgexp))]
-D &lt;- D[, `:=`(propertyDamage, ifelse(propdmgexp == &quot;B&quot;, propdmg * 1e+09, ifelse(propdmgexp == 
+<pre><code class="r">D &lt;- D[, `:=`(propertyDamage, ifelse(propdmgexp == &quot;B&quot;, propdmg * 1e+09, ifelse(propdmgexp == 
     &quot;M&quot;, propdmg * 1e+06, ifelse(propdmgexp == &quot;K&quot;, propdmg * 1000, ifelse(propdmgexp == 
     &quot;H&quot;, propdmg * 100, propdmg)))))]
 summary(D$propertyDamage)
@@ -388,6 +387,38 @@ summary(D$propertyDamage)
 
 <pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
 ## 0.00e+00 0.00e+00 0.00e+00 4.74e+05 5.00e+02 1.15e+11
+</code></pre>
+
+<p>Scale the crop damage variable into a new variable, <code>cropDamage</code>.</p>
+
+<ul>
+<li>If <code>cropdmgexp</code> = <code>B</code>, then multiply <code>cropdmg</code> by 1,000,000,000</li>
+<li>Else if <code>cropdmgexp</code> = <code>M</code>, then multiply <code>cropdmg</code> by 1,000,000</li>
+<li>Else if <code>cropdmgexp</code> = <code>K</code>, then multiply <code>cropdmg</code> by 1,000</li>
+<li>Else leave <code>cropdmg</code> as-is</li>
+</ul>
+
+<pre><code class="r">D &lt;- D[, `:=`(cropdmgexp, toupper(cropdmgexp))]
+D[, .N, cropdmgexp]
+</code></pre>
+
+<pre><code>##    cropdmgexp      N
+## 1:            618413
+## 2:          M   1995
+## 3:          K 281853
+## 4:          B      9
+## 5:          ?      7
+## 6:          0     19
+## 7:          2      1
+</code></pre>
+
+<pre><code class="r">D &lt;- D[, `:=`(cropDamage, ifelse(cropdmgexp == &quot;B&quot;, cropdmg * 1e+09, ifelse(cropdmgexp == 
+    &quot;M&quot;, cropdmg * 1e+06, ifelse(cropdmgexp == &quot;K&quot;, cropdmg * 1000, cropdmg))))]
+summary(D$cropDamage)
+</code></pre>
+
+<pre><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 0.00e+00 0.00e+00 0.00e+00 5.44e+04 0.00e+00 5.00e+09
 </code></pre>
 
 <h4>Group event types</h4>
@@ -401,6 +432,8 @@ The number of unique values is too large to manage without some grouping.</p>
 <pre><code>## Number of unique values of evtype: 985
 </code></pre>
 
+<p>Group event types to mimic the categories found in the <a href="http://www.ncdc.noaa.gov/oa/climate/sd/annsum2009.pdf">2009 Annual Summaries</a> on page 3.</p>
+
 <p><code>evtype</code> needs a lot of data cleaning.
 Particularly, values need to be grouped to resolve spelling variations.
 Also, records can have multiple events listed in the <code>evtype</code> variable.
@@ -408,439 +441,462 @@ Create indicator variables for common event types.</p>
 
 <p>Define a helper function <code>freqtab</code> to help with grouping <code>evtype</code> values.</p>
 
-<pre><code class="r">indicator &lt;- function(x) {
-    indicator &lt;- grepl(x, D$evtype, ignore.case = TRUE)
-    show(unique(D[indicator, evtype]))
+<pre><code class="r">indicator &lt;- function(regex) {
+    indicator &lt;- grepl(regex, D$evtype, ignore.case = TRUE)
+    uniqueEventTypes &lt;- unique(D[indicator, evtype])
+    show(uniqueEventTypes[order(uniqueEventTypes)])
     indicator
 }
 </code></pre>
 
-<p>Create an indicator for variations of <strong>Wind</strong>.</p>
+<p>Create an indicators for variations of <strong>Lightning</strong>, <strong>Tornado</strong>, <strong>Thunderstorm Wind</strong>, and <strong>Hail</strong>.
+These fall into the top-level category of <strong>Convection</strong>.</p>
 
-<pre><code class="r">regex &lt;- &quot;(WIND)|(WND)&quot;
-D &lt;- D[, `:=`(eventWind, indicator(regex))]
+<pre><code class="r">regexLightning &lt;- &quot;\\bL\\S+?G\\b&quot;
+regexTornado &lt;- &quot;(NADO)|(\\bTOR\\S+?O\\b|(\\bFUN))&quot;
+regexThunderstorm &lt;- &quot;THUNDERSTORM|TSTM&quot;
+regexWind &lt;- &quot;(WIND)|(WND)&quot;
+regexHail &lt;- &quot;HAIL&quot;
+regex &lt;- paste(regexLightning, regexTornado, regexThunderstorm, regexWind, regexHail, 
+    sep = &quot;|&quot;)
+D &lt;- D[, `:=`(eventConvection, indicator(regex))]
 </code></pre>
 
-<pre><code>##   [1] &quot;TSTM WIND&quot;                      &quot;HURRICANE OPAL/HIGH WINDS&quot;     
-##   [3] &quot;THUNDERSTORM WINDS&quot;             &quot;THUNDERSTORM WIND&quot;             
-##   [5] &quot;HIGH WINDS&quot;                     &quot;THUNDERSTORM WINDS LIGHTNING&quot;  
-##   [7] &quot;THUNDERSTORM WINDS/HAIL&quot;        &quot;WIND&quot;                          
-##   [9] &quot;THUNDERSTORM WINDS HAIL&quot;        &quot;HIGH WIND&quot;                     
-##  [11] &quot;WIND CHILL&quot;                     &quot;HIGH WIND/BLIZZARD&quot;            
-##  [13] &quot;HIGH WIND AND HIGH TIDES&quot;       &quot;HIGH WIND/BLIZZARD/FREEZING RA&quot;
-##  [15] &quot;HIGH WIND AND HEAVY SNOW&quot;       &quot;RECORD COLD AND HIGH WIND&quot;     
-##  [17] &quot;HIGH WINDS HEAVY RAINS&quot;         &quot;HIGH WIND/ BLIZZARD&quot;           
-##  [19] &quot;BLIZZARD/HIGH WIND&quot;             &quot;HIGH WIND/LOW WIND CHILL&quot;      
-##  [21] &quot;HIGH WINDS AND WIND CHILL&quot;      &quot;HEAVY SNOW/HIGH WINDS/FREEZING&quot;
-##  [23] &quot;WIND CHILL/HIGH WIND&quot;           &quot;HIGH WIND/WIND CHILL/BLIZZARD&quot; 
-##  [25] &quot;HIGH WIND/WIND CHILL&quot;           &quot;HIGH WIND/HEAVY SNOW&quot;          
-##  [27] &quot;HIGH WIND/SEAS&quot;                 &quot;HIGH WINDS/HEAVY RAIN&quot;         
-##  [29] &quot;HEAVY SNOW/WIND&quot;                &quot;WIND DAMAGE&quot;                   
-##  [31] &quot;THUNDERSTORM WINDS/FUNNEL CLOU&quot; &quot;WINTER STORM/HIGH WIND&quot;        
-##  [33] &quot;WINTER STORM/HIGH WINDS&quot;        &quot;GUSTY WINDS&quot;                   
-##  [35] &quot;STRONG WINDS&quot;                   &quot;SNOW AND WIND&quot;                 
-##  [37] &quot;HIGH WINDS DUST STORM&quot;          &quot;WINTER STORM HIGH WINDS&quot;       
-##  [39] &quot;SEVERE THUNDERSTORM WINDS&quot;      &quot;THUNDERSTORMS WINDS&quot;           
-##  [41] &quot;FLOOD/RAIN/WINDS&quot;               &quot;WINDS&quot;                         
-##  [43] &quot;FLASH FLOOD WINDS&quot;              &quot;STRONG WIND&quot;                   
-##  [45] &quot;HIGH WIND DAMAGE&quot;               &quot;FLOOD/RAIN/WIND&quot;               
-##  [47] &quot;DOWNBURST WINDS&quot;                &quot;DRY MICROBURST WINDS&quot;          
-##  [49] &quot;DRY MIRCOBURST WINDS&quot;           &quot;MICROBURST WINDS&quot;              
-##  [51] &quot;HIGH WINDS 57&quot;                  &quot;HIGH WINDS 66&quot;                 
-##  [53] &quot;HIGH WINDS 76&quot;                  &quot;HIGH WINDS 63&quot;                 
-##  [55] &quot;HIGH WINDS 67&quot;                  &quot;HEAVY SNOW/HIGH WINDS&quot;         
-##  [57] &quot;HIGH WINDS 82&quot;                  &quot;HIGH WINDS 80&quot;                 
-##  [59] &quot;HIGH WINDS 58&quot;                  &quot;LIGHTNING THUNDERSTORM WINDSS&quot; 
-##  [61] &quot;HIGH WINDS 73&quot;                  &quot;HIGH WINDS 55&quot;                 
-##  [63] &quot;THUNDERSTORM WINDS 60&quot;          &quot;THUNDERSTORM WINDSS&quot;           
-##  [65] &quot;HIGH WINDS/FLOODING&quot;            &quot;TORNADOES, TSTM WIND, HAIL&quot;    
-##  [67] &quot;LIGHTNING THUNDERSTORM WINDS&quot;   &quot;THUNDERSTORM WINDS53&quot;          
-##  [69] &quot;THUNDERSTORM WINDS 13&quot;          &quot;HEAVY SNOW/HIGH WIND&quot;          
-##  [71] &quot;HIGH WINDS/&quot;                    &quot;EXTREME WIND CHILLS&quot;           
-##  [73] &quot;HIGH  WINDS&quot;                    &quot;EXTREME WIND CHILL&quot;            
-##  [75] &quot;GRADIENT WINDS&quot;                 &quot;THUNDERSTORM WINDS URBAN FLOOD&quot;
-##  [77] &quot;THUNDERSTORM WINDS SMALL STREA&quot; &quot;BLOWING SNOW- EXTREME WIND CHI&quot;
-##  [79] &quot;SNOW- HIGH WIND- WIND CHILL&quot;    &quot;THUNDERSTORM WINDS 2&quot;          
-##  [81] &quot;TSTM WIND 51&quot;                   &quot;TSTM WIND 50&quot;                  
-##  [83] &quot;TSTM WIND 52&quot;                   &quot;TSTM WIND 55&quot;                  
-##  [85] &quot;THUNDERSTORM WINDS 61&quot;          &quot;THUNDERTORM WINDS&quot;             
-##  [87] &quot;HAIL/WINDS&quot;                     &quot;WIND STORM&quot;                    
-##  [89] &quot;HAIL/WIND&quot;                      &quot;WIND/HAIL&quot;                     
-##  [91] &quot;THUNDERSTORMS WIND&quot;             &quot;THUNDERSTORM  WINDS&quot;           
-##  [93] &quot;TUNDERSTORM WIND&quot;               &quot;THUNDERTSORM WIND&quot;             
-##  [95] &quot;THUNDERSTORM WINDS/ HAIL&quot;       &quot;THUNDERSTORM WIND/LIGHTNING&quot;   
-##  [97] &quot;THUNDESTORM WINDS&quot;              &quot;HIGH WIND 63&quot;                  
-##  [99] &quot;HIGH WINDS/COASTAL FLOOD&quot;       &quot;THUNDERSTORM WIND G50&quot;         
-## [101] &quot;THUNDERSTORM WINDS/HEAVY RAIN&quot;  &quot;THUNDERSTROM WINDS&quot;            
-## [103] &quot;THUNDERSTORM WINDS      LE CEN&quot; &quot;BLIZZARD AND EXTREME WIND CHIL&quot;
-## [105] &quot;LOW WIND CHILL&quot;                 &quot;BLOWING SNOW &amp; EXTREME WIND CH&quot;
-## [107] &quot;THUNDERSTORM WINDS G&quot;           &quot;DUST STORM/HIGH WINDS&quot;         
-## [109] &quot;THUNDERSTORM WIND G60&quot;          &quot;THUNDERSTORM WINDS.&quot;           
-## [111] &quot;THUNDERSTORM WIND G55&quot;          &quot;THUNDERSTORM WINDS G60&quot;        
-## [113] &quot;THUNDERSTORM WINDS FUNNEL CLOU&quot; &quot;THUNDERSTORM WINDS 62&quot;         
-## [115] &quot;HEAVY SNOW AND HIGH WINDS&quot;      &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot; 
-## [117] &quot;THUNDERSTORM WINDS/FLASH FLOOD&quot; &quot;HIGH WIND 70&quot;                  
-## [119] &quot;THUNDERSTORM WINDS 53&quot;          &quot;RAIN AND WIND&quot;                 
-## [121] &quot;THUNDERSTORM WIND 59&quot;           &quot;THUNDERSTORM WIND 52&quot;          
-## [123] &quot;THUNDERSTORM WIND 69&quot;           &quot;LIGHTNING AND WINDS&quot;           
-## [125] &quot;TSTM WIND G58&quot;                  &quot;THUNDERSTORMW WINDS&quot;           
-## [127] &quot;THUNDERSTORM WIND 60 MPH&quot;       &quot;THUNDERSTORM WIND 65MPH&quot;       
-## [129] &quot;THUNDERSTORM WIND/ TREES&quot;       &quot;THUNDERSTORM WIND/AWNING&quot;      
-## [131] &quot;THUNDERSTORM WIND 98 MPH&quot;       &quot;THUNDERSTORM WIND TREES&quot;       
-## [133] &quot;THUNDERSTORM WIND 59 MPH&quot;       &quot;THUNDERSTORM WINDS 63 MPH&quot;     
-## [135] &quot;THUNDERSTORM WIND/ TREE&quot;        &quot;THUNDERSTORM WIND 65 MPH&quot;      
-## [137] &quot;THUNDERSTORM WIND.&quot;             &quot;THUNDERSTORM WIND 59 MPH.&quot;     
-## [139] &quot;THUNDERSTORM WINDSHAIL&quot;         &quot;THUDERSTORM WINDS&quot;             
-## [141] &quot;STORM FORCE WINDS&quot;              &quot;THUNDERSTORM WINDS AND&quot;        
-## [143] &quot;HEAVY RAIN; URBAN FLOOD WINDS;&quot; &quot;TSTM WIND DAMAGE&quot;              
-## [145] &quot;RAIN/WIND&quot;                      &quot;THUNDERSTORM WINDS 50&quot;         
-## [147] &quot;THUNDERSTORM WIND G52&quot;          &quot;THUNDERSTORM WINDS 52&quot;         
-## [149] &quot;THUNDERSTORM WIND G51&quot;          &quot;THUNDERSTORM WIND G61&quot;         
-## [151] &quot;THUNDERESTORM WINDS&quot;            &quot;THUNDERSTORM WINDS/FLOODING&quot;   
-## [153] &quot;THUNDEERSTORM WINDS&quot;            &quot;THUNDERSTORM WIND 50&quot;          
-## [155] &quot;THUNERSTORM WINDS&quot;              &quot;HIGH WINDS/COLD&quot;               
-## [157] &quot;COLD/WINDS&quot;                     &quot;THUNDERSTORM WIND 56&quot;          
-## [159] &quot;ICE/STRONG WINDS&quot;               &quot;EXTREME WIND CHILL/BLOWING SNO&quot;
-## [161] &quot;SNOW/HIGH WINDS&quot;                &quot;HIGH WINDS/SNOW&quot;               
-## [163] &quot;HEAVY SNOW AND STRONG WINDS&quot;    &quot;BLOWING SNOW/EXTREME WIND CHIL&quot;
-## [165] &quot;THUNDERSTORM WIND/HAIL&quot;         &quot;TSTM WINDS&quot;                    
-## [167] &quot;TSTM WIND 65)&quot;                  &quot;THUNDERSTORM WINDS/ FLOOD&quot;     
-## [169] &quot;HIGH WIND AND SEAS&quot;             &quot;THUNDERSTORMWINDS&quot;             
-## [171] &quot;THUNDERSTORM WINDS HEAVY RAIN&quot;  &quot;THUNDERSTROM WIND&quot;             
-## [173] &quot;HIGH WIND 48&quot;                   &quot;EXTREME WINDCHILL&quot;             
-## [175] &quot;TSTM WIND/HAIL&quot;                 &quot;High Wind&quot;                     
-## [177] &quot;Tstm Wind&quot;                      &quot;Wind&quot;                          
-## [179] &quot;Wind Damage&quot;                    &quot;Strong Wind&quot;                   
-## [181] &quot;Heavy Rain and Wind&quot;            &quot;Thunderstorm Wind&quot;             
-## [183] &quot;HEAVY RAIN/WIND&quot;                &quot;Strong Winds&quot;                  
-## [185] &quot;Strong winds&quot;                   &quot;Whirlwind&quot;                     
-## [187] &quot;Gusty Wind&quot;                     &quot;Gradient wind&quot;                 
-## [189] &quot;Gusty wind/rain&quot;                &quot;GUSTY WIND/HVY RAIN&quot;           
-## [191] &quot;TSTM WIND (G45)&quot;                &quot;Gusty Winds&quot;                   
-## [193] &quot;GUSTY WIND&quot;                     &quot;TSTM WIND 40&quot;                  
-## [195] &quot;TSTM WIND 45&quot;                   &quot;TSTM WIND (41)&quot;                
-## [197] &quot;TSTM WIND (G40)&quot;                &quot;TSTM WND&quot;                      
-## [199] &quot; TSTM WIND&quot;                     &quot;STRONG WIND GUST&quot;              
-## [201] &quot;Gusty winds&quot;                    &quot;GRADIENT WIND&quot;                 
-## [203] &quot;Flood/Strong Wind&quot;              &quot;TSTM WIND AND LIGHTNING&quot;       
-## [205] &quot;gradient wind&quot;                  &quot;Heavy surf and wind&quot;           
-## [207] &quot; TSTM WIND (G45)&quot;               &quot;TSTM WIND  (G45)&quot;              
-## [209] &quot;HIGH WIND (G40)&quot;                &quot;TSTM WIND (G35)&quot;               
-## [211] &quot;WAKE LOW WIND&quot;                  &quot;COLD WIND CHILL TEMPERATURES&quot;  
-## [213] &quot;BITTER WIND CHILL&quot;              &quot;BITTER WIND CHILL TEMPERATURES&quot;
-## [215] &quot;WIND ADVISORY&quot;                  &quot;GUSTY WIND/HAIL&quot;               
-## [217] &quot;EXTREME WINDCHILL TEMPERATURES&quot; &quot;WIND AND WAVE&quot;                 
-## [219] &quot; WIND&quot;                          &quot;TSTM WIND G45&quot;                 
-## [221] &quot;NON-SEVERE WIND DAMAGE&quot;         &quot;THUNDERSTORM WIND (G40)&quot;       
-## [223] &quot;WIND GUSTS&quot;                     &quot;GUSTY LAKE WIND&quot;               
-## [225] &quot;WND&quot;                            &quot;NON-TSTM WIND&quot;                 
-## [227] &quot;NON TSTM WIND&quot;                  &quot;GUSTY THUNDERSTORM WINDS&quot;      
-## [229] &quot;MARINE TSTM WIND&quot;               &quot;WHIRLWIND&quot;                     
-## [231] &quot;EXTREME COLD/WIND CHILL&quot;        &quot;GUSTY THUNDERSTORM WIND&quot;       
-## [233] &quot;COLD/WIND CHILL&quot;                &quot;MARINE HIGH WIND&quot;              
-## [235] &quot;MARINE THUNDERSTORM WIND&quot;       &quot;MARINE STRONG WIND&quot;
+<pre><code>##   [1] &quot; LIGHTNING&quot;                     &quot; TSTM WIND&quot;                    
+##   [3] &quot; TSTM WIND (G45)&quot;               &quot; WIND&quot;                         
+##   [5] &quot;BITTER WIND CHILL&quot;              &quot;BITTER WIND CHILL TEMPERATURES&quot;
+##   [7] &quot;BLIZZARD AND EXTREME WIND CHIL&quot; &quot;BLIZZARD/HIGH WIND&quot;            
+##   [9] &quot;BLOWING SNOW- EXTREME WIND CHI&quot; &quot;BLOWING SNOW &amp; EXTREME WIND CH&quot;
+##  [11] &quot;BLOWING SNOW/EXTREME WIND CHIL&quot; &quot;COLD AIR FUNNEL&quot;               
+##  [13] &quot;COLD AIR FUNNELS&quot;               &quot;COLD AIR TORNADO&quot;              
+##  [15] &quot;COLD WIND CHILL TEMPERATURES&quot;   &quot;COLD/WIND CHILL&quot;               
+##  [17] &quot;COLD/WINDS&quot;                     &quot;DEEP HAIL&quot;                     
+##  [19] &quot;DOWNBURST WINDS&quot;                &quot;DRY MICROBURST WINDS&quot;          
+##  [21] &quot;DRY MIRCOBURST WINDS&quot;           &quot;DUST STORM/HIGH WINDS&quot;         
+##  [23] &quot;EXTREME COLD/WIND CHILL&quot;        &quot;EXTREME WIND CHILL&quot;            
+##  [25] &quot;EXTREME WIND CHILL/BLOWING SNO&quot; &quot;EXTREME WIND CHILLS&quot;           
+##  [27] &quot;EXTREME WINDCHILL&quot;              &quot;EXTREME WINDCHILL TEMPERATURES&quot;
+##  [29] &quot;FLASH FLOOD WINDS&quot;              &quot;FLASH FLOODING/THUNDERSTORM WI&quot;
+##  [31] &quot;FLOOD/RAIN/WIND&quot;                &quot;FLOOD/RAIN/WINDS&quot;              
+##  [33] &quot;Flood/Strong Wind&quot;              &quot;FUNNEL&quot;                        
+##  [35] &quot;Funnel Cloud&quot;                   &quot;FUNNEL CLOUD&quot;                  
+##  [37] &quot;FUNNEL CLOUD.&quot;                  &quot;FUNNEL CLOUD/HAIL&quot;             
+##  [39] &quot;FUNNEL CLOUDS&quot;                  &quot;FUNNELS&quot;                       
+##  [41] &quot;gradient wind&quot;                  &quot;Gradient wind&quot;                 
+##  [43] &quot;GRADIENT WIND&quot;                  &quot;GRADIENT WINDS&quot;                
+##  [45] &quot;GUSTNADO&quot;                       &quot;GUSTNADO AND&quot;                  
+##  [47] &quot;GUSTY LAKE WIND&quot;                &quot;GUSTY THUNDERSTORM WIND&quot;       
+##  [49] &quot;GUSTY THUNDERSTORM WINDS&quot;       &quot;Gusty Wind&quot;                    
+##  [51] &quot;GUSTY WIND&quot;                     &quot;GUSTY WIND/HAIL&quot;               
+##  [53] &quot;GUSTY WIND/HVY RAIN&quot;            &quot;Gusty wind/rain&quot;               
+##  [55] &quot;Gusty winds&quot;                    &quot;Gusty Winds&quot;                   
+##  [57] &quot;GUSTY WINDS&quot;                    &quot;HAIL&quot;                          
+##  [59] &quot;HAIL 0.75&quot;                      &quot;HAIL 0.88&quot;                     
+##  [61] &quot;HAIL 075&quot;                       &quot;HAIL 088&quot;                      
+##  [63] &quot;HAIL 1.00&quot;                      &quot;HAIL 1.75&quot;                     
+##  [65] &quot;HAIL 1.75)&quot;                     &quot;HAIL 100&quot;                      
+##  [67] &quot;HAIL 125&quot;                       &quot;HAIL 150&quot;                      
+##  [69] &quot;HAIL 175&quot;                       &quot;HAIL 200&quot;                      
+##  [71] &quot;HAIL 225&quot;                       &quot;HAIL 275&quot;                      
+##  [73] &quot;HAIL 450&quot;                       &quot;HAIL 75&quot;                       
+##  [75] &quot;HAIL 80&quot;                        &quot;HAIL 88&quot;                       
+##  [77] &quot;HAIL ALOFT&quot;                     &quot;HAIL DAMAGE&quot;                   
+##  [79] &quot;HAIL FLOODING&quot;                  &quot;HAIL STORM&quot;                    
+##  [81] &quot;Hail(0.75)&quot;                     &quot;HAIL/ICY ROADS&quot;                
+##  [83] &quot;HAIL/WIND&quot;                      &quot;HAIL/WINDS&quot;                    
+##  [85] &quot;HAILSTORM&quot;                      &quot;HAILSTORMS&quot;                    
+##  [87] &quot;Heavy Rain and Wind&quot;            &quot;HEAVY RAIN/LIGHTNING&quot;          
+##  [89] &quot;HEAVY RAIN/WIND&quot;                &quot;HEAVY RAIN; URBAN FLOOD WINDS;&quot;
+##  [91] &quot;HEAVY SNOW AND HIGH WINDS&quot;      &quot;HEAVY SNOW AND STRONG WINDS&quot;   
+##  [93] &quot;HEAVY SNOW/HIGH WIND&quot;           &quot;HEAVY SNOW/HIGH WINDS&quot;         
+##  [95] &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot;  &quot;HEAVY SNOW/HIGH WINDS/FREEZING&quot;
+##  [97] &quot;HEAVY SNOW/WIND&quot;                &quot;Heavy surf and wind&quot;           
+##  [99] &quot;HIGH  WINDS&quot;                    &quot;High Wind&quot;                     
+## [101] &quot;HIGH WIND&quot;                      &quot;HIGH WIND (G40)&quot;               
+## [103] &quot;HIGH WIND 48&quot;                   &quot;HIGH WIND 63&quot;                  
+## [105] &quot;HIGH WIND 70&quot;                   &quot;HIGH WIND AND HEAVY SNOW&quot;      
+## [107] &quot;HIGH WIND AND HIGH TIDES&quot;       &quot;HIGH WIND AND SEAS&quot;            
+## [109] &quot;HIGH WIND DAMAGE&quot;               &quot;HIGH WIND/ BLIZZARD&quot;           
+## [111] &quot;HIGH WIND/BLIZZARD&quot;             &quot;HIGH WIND/BLIZZARD/FREEZING RA&quot;
+## [113] &quot;HIGH WIND/HEAVY SNOW&quot;           &quot;HIGH WIND/LOW WIND CHILL&quot;      
+## [115] &quot;HIGH WIND/SEAS&quot;                 &quot;HIGH WIND/WIND CHILL&quot;          
+## [117] &quot;HIGH WIND/WIND CHILL/BLIZZARD&quot;  &quot;HIGH WINDS&quot;                    
+## [119] &quot;HIGH WINDS 55&quot;                  &quot;HIGH WINDS 57&quot;                 
+## [121] &quot;HIGH WINDS 58&quot;                  &quot;HIGH WINDS 63&quot;                 
+## [123] &quot;HIGH WINDS 66&quot;                  &quot;HIGH WINDS 67&quot;                 
+## [125] &quot;HIGH WINDS 73&quot;                  &quot;HIGH WINDS 76&quot;                 
+## [127] &quot;HIGH WINDS 80&quot;                  &quot;HIGH WINDS 82&quot;                 
+## [129] &quot;HIGH WINDS AND WIND CHILL&quot;      &quot;HIGH WINDS DUST STORM&quot;         
+## [131] &quot;HIGH WINDS HEAVY RAINS&quot;         &quot;HIGH WINDS/&quot;                   
+## [133] &quot;HIGH WINDS/COASTAL FLOOD&quot;       &quot;HIGH WINDS/COLD&quot;               
+## [135] &quot;HIGH WINDS/FLOODING&quot;            &quot;HIGH WINDS/HEAVY RAIN&quot;         
+## [137] &quot;HIGH WINDS/SNOW&quot;                &quot;HURRICANE OPAL/HIGH WINDS&quot;     
+## [139] &quot;ICE/STRONG WINDS&quot;               &quot;LATE SEASON HAIL&quot;              
+## [141] &quot;LIGHTING&quot;                       &quot;LIGHTNING&quot;                     
+## [143] &quot;LIGHTNING  WAUSEON&quot;             &quot;LIGHTNING AND HEAVY RAIN&quot;      
+## [145] &quot;LIGHTNING AND THUNDERSTORM WIN&quot; &quot;LIGHTNING AND WINDS&quot;           
+## [147] &quot;LIGHTNING DAMAGE&quot;               &quot;LIGHTNING FIRE&quot;                
+## [149] &quot;LIGHTNING INJURY&quot;               &quot;LIGHTNING THUNDERSTORM WINDS&quot;  
+## [151] &quot;LIGHTNING THUNDERSTORM WINDSS&quot;  &quot;LIGHTNING.&quot;                    
+## [153] &quot;LIGHTNING/HEAVY RAIN&quot;           &quot;LIGNTNING&quot;                     
+## [155] &quot;LOW WIND CHILL&quot;                 &quot;MARINE HAIL&quot;                   
+## [157] &quot;MARINE HIGH WIND&quot;               &quot;MARINE STRONG WIND&quot;            
+## [159] &quot;MARINE THUNDERSTORM WIND&quot;       &quot;MARINE TSTM WIND&quot;              
+## [161] &quot;MICROBURST WINDS&quot;               &quot;NON-SEVERE WIND DAMAGE&quot;        
+## [163] &quot;NON-TSTM WIND&quot;                  &quot;NON SEVERE HAIL&quot;               
+## [165] &quot;NON TSTM WIND&quot;                  &quot;RAIN AND WIND&quot;                 
+## [167] &quot;RAIN/WIND&quot;                      &quot;RECORD COLD AND HIGH WIND&quot;     
+## [169] &quot;SEVERE THUNDERSTORM&quot;            &quot;SEVERE THUNDERSTORM WINDS&quot;     
+## [171] &quot;SEVERE THUNDERSTORMS&quot;           &quot;small hail&quot;                    
+## [173] &quot;Small Hail&quot;                     &quot;SMALL HAIL&quot;                    
+## [175] &quot;SNOW- HIGH WIND- WIND CHILL&quot;    &quot;SNOW AND WIND&quot;                 
+## [177] &quot;SNOW/HIGH WINDS&quot;                &quot;STORM FORCE WINDS&quot;             
+## [179] &quot;Strong Wind&quot;                    &quot;STRONG WIND&quot;                   
+## [181] &quot;STRONG WIND GUST&quot;               &quot;Strong winds&quot;                  
+## [183] &quot;Strong Winds&quot;                   &quot;STRONG WINDS&quot;                  
+## [185] &quot;THUDERSTORM WINDS&quot;              &quot;THUNDEERSTORM WINDS&quot;           
+## [187] &quot;THUNDERESTORM WINDS&quot;            &quot;THUNDERSTORM&quot;                  
+## [189] &quot;THUNDERSTORM  WINDS&quot;            &quot;THUNDERSTORM DAMAGE&quot;           
+## [191] &quot;THUNDERSTORM DAMAGE TO&quot;         &quot;THUNDERSTORM HAIL&quot;             
+## [193] &quot;THUNDERSTORM W INDS&quot;            &quot;Thunderstorm Wind&quot;             
+## [195] &quot;THUNDERSTORM WIND&quot;              &quot;THUNDERSTORM WIND (G40)&quot;       
+## [197] &quot;THUNDERSTORM WIND 50&quot;           &quot;THUNDERSTORM WIND 52&quot;          
+## [199] &quot;THUNDERSTORM WIND 56&quot;           &quot;THUNDERSTORM WIND 59&quot;          
+## [201] &quot;THUNDERSTORM WIND 59 MPH&quot;       &quot;THUNDERSTORM WIND 59 MPH.&quot;     
+## [203] &quot;THUNDERSTORM WIND 60 MPH&quot;       &quot;THUNDERSTORM WIND 65 MPH&quot;      
+## [205] &quot;THUNDERSTORM WIND 65MPH&quot;        &quot;THUNDERSTORM WIND 69&quot;          
+## [207] &quot;THUNDERSTORM WIND 98 MPH&quot;       &quot;THUNDERSTORM WIND G50&quot;         
+## [209] &quot;THUNDERSTORM WIND G51&quot;          &quot;THUNDERSTORM WIND G52&quot;         
+## [211] &quot;THUNDERSTORM WIND G55&quot;          &quot;THUNDERSTORM WIND G60&quot;         
+## [213] &quot;THUNDERSTORM WIND G61&quot;          &quot;THUNDERSTORM WIND TREES&quot;       
+## [215] &quot;THUNDERSTORM WIND.&quot;             &quot;THUNDERSTORM WIND/ TREE&quot;       
+## [217] &quot;THUNDERSTORM WIND/ TREES&quot;       &quot;THUNDERSTORM WIND/AWNING&quot;      
+## [219] &quot;THUNDERSTORM WIND/HAIL&quot;         &quot;THUNDERSTORM WIND/LIGHTNING&quot;   
+## [221] &quot;THUNDERSTORM WINDS&quot;             &quot;THUNDERSTORM WINDS      LE CEN&quot;
+## [223] &quot;THUNDERSTORM WINDS 13&quot;          &quot;THUNDERSTORM WINDS 2&quot;          
+## [225] &quot;THUNDERSTORM WINDS 50&quot;          &quot;THUNDERSTORM WINDS 52&quot;         
+## [227] &quot;THUNDERSTORM WINDS 53&quot;          &quot;THUNDERSTORM WINDS 60&quot;         
+## [229] &quot;THUNDERSTORM WINDS 61&quot;          &quot;THUNDERSTORM WINDS 62&quot;         
+## [231] &quot;THUNDERSTORM WINDS 63 MPH&quot;      &quot;THUNDERSTORM WINDS AND&quot;        
+## [233] &quot;THUNDERSTORM WINDS FUNNEL CLOU&quot; &quot;THUNDERSTORM WINDS G&quot;          
+## [235] &quot;THUNDERSTORM WINDS G60&quot;         &quot;THUNDERSTORM WINDS HAIL&quot;       
+## [237] &quot;THUNDERSTORM WINDS HEAVY RAIN&quot;  &quot;THUNDERSTORM WINDS LIGHTNING&quot;  
+## [239] &quot;THUNDERSTORM WINDS SMALL STREA&quot; &quot;THUNDERSTORM WINDS URBAN FLOOD&quot;
+## [241] &quot;THUNDERSTORM WINDS.&quot;            &quot;THUNDERSTORM WINDS/ FLOOD&quot;     
+## [243] &quot;THUNDERSTORM WINDS/ HAIL&quot;       &quot;THUNDERSTORM WINDS/FLASH FLOOD&quot;
+## [245] &quot;THUNDERSTORM WINDS/FLOODING&quot;    &quot;THUNDERSTORM WINDS/FUNNEL CLOU&quot;
+## [247] &quot;THUNDERSTORM WINDS/HAIL&quot;        &quot;THUNDERSTORM WINDS/HEAVY RAIN&quot; 
+## [249] &quot;THUNDERSTORM WINDS53&quot;           &quot;THUNDERSTORM WINDSHAIL&quot;        
+## [251] &quot;THUNDERSTORM WINDSS&quot;            &quot;THUNDERSTORM WINS&quot;             
+## [253] &quot;THUNDERSTORMS&quot;                  &quot;THUNDERSTORMS WIND&quot;            
+## [255] &quot;THUNDERSTORMS WINDS&quot;            &quot;THUNDERSTORMW&quot;                 
+## [257] &quot;THUNDERSTORMW 50&quot;               &quot;THUNDERSTORMW WINDS&quot;           
+## [259] &quot;THUNDERSTORMWINDS&quot;              &quot;THUNDERSTROM WIND&quot;             
+## [261] &quot;THUNDERSTROM WINDS&quot;             &quot;THUNDERTORM WINDS&quot;             
+## [263] &quot;THUNDERTSORM WIND&quot;              &quot;THUNDESTORM WINDS&quot;             
+## [265] &quot;THUNERSTORM WINDS&quot;              &quot;TORNADO&quot;                       
+## [267] &quot;TORNADO DEBRIS&quot;                 &quot;TORNADO F0&quot;                    
+## [269] &quot;TORNADO F1&quot;                     &quot;TORNADO F2&quot;                    
+## [271] &quot;TORNADO F3&quot;                     &quot;TORNADO/WATERSPOUT&quot;            
+## [273] &quot;TORNADOES&quot;                      &quot;TORNADOES, TSTM WIND, HAIL&quot;    
+## [275] &quot;TORNADOS&quot;                       &quot;TORNDAO&quot;                       
+## [277] &quot;TSTM&quot;                           &quot;TSTM HEAVY RAIN&quot;               
+## [279] &quot;Tstm Wind&quot;                      &quot;TSTM WIND&quot;                     
+## [281] &quot;TSTM WIND  (G45)&quot;               &quot;TSTM WIND (41)&quot;                
+## [283] &quot;TSTM WIND (G35)&quot;                &quot;TSTM WIND (G40)&quot;               
+## [285] &quot;TSTM WIND (G45)&quot;                &quot;TSTM WIND 40&quot;                  
+## [287] &quot;TSTM WIND 45&quot;                   &quot;TSTM WIND 50&quot;                  
+## [289] &quot;TSTM WIND 51&quot;                   &quot;TSTM WIND 52&quot;                  
+## [291] &quot;TSTM WIND 55&quot;                   &quot;TSTM WIND 65)&quot;                 
+## [293] &quot;TSTM WIND AND LIGHTNING&quot;        &quot;TSTM WIND DAMAGE&quot;              
+## [295] &quot;TSTM WIND G45&quot;                  &quot;TSTM WIND G58&quot;                 
+## [297] &quot;TSTM WIND/HAIL&quot;                 &quot;TSTM WINDS&quot;                    
+## [299] &quot;TSTM WND&quot;                       &quot;TSTMW&quot;                         
+## [301] &quot;TUNDERSTORM WIND&quot;               &quot;WAKE LOW WIND&quot;                 
+## [303] &quot;WALL CLOUD/FUNNEL CLOUD&quot;        &quot;WATERSPOUT-TORNADO&quot;            
+## [305] &quot;WATERSPOUT FUNNEL CLOUD&quot;        &quot;WATERSPOUT TORNADO&quot;            
+## [307] &quot;WATERSPOUT/ TORNADO&quot;            &quot;WATERSPOUT/TORNADO&quot;            
+## [309] &quot;Whirlwind&quot;                      &quot;WHIRLWIND&quot;                     
+## [311] &quot;Wind&quot;                           &quot;WIND&quot;                          
+## [313] &quot;WIND ADVISORY&quot;                  &quot;WIND AND WAVE&quot;                 
+## [315] &quot;WIND CHILL&quot;                     &quot;WIND CHILL/HIGH WIND&quot;          
+## [317] &quot;Wind Damage&quot;                    &quot;WIND DAMAGE&quot;                   
+## [319] &quot;WIND GUSTS&quot;                     &quot;WIND STORM&quot;                    
+## [321] &quot;WIND/HAIL&quot;                      &quot;WINDS&quot;                         
+## [323] &quot;WINTER STORM HIGH WINDS&quot;        &quot;WINTER STORM/HIGH WIND&quot;        
+## [325] &quot;WINTER STORM/HIGH WINDS&quot;        &quot;WND&quot;
 </code></pre>
 
-<p>Create an indicator for variations of <strong>Hail</strong>.</p>
+<p>Create an indicators for variations of <strong>Cold</strong> and <strong>Heat</strong>.
+These fall into the top-level category of <strong>Extreme Temperatures</strong>.</p>
 
-<pre><code class="r">regex &lt;- &quot;HAIL&quot;
-D &lt;- D[, `:=`(eventHail, indicator(regex))]
+<pre><code class="r">regex &lt;- &quot;COLD|HEAT&quot;
+D &lt;- D[, `:=`(eventExtremeTemp, indicator(regex))]
 </code></pre>
 
-<pre><code>##  [1] &quot;HAIL&quot;                       &quot;THUNDERSTORM WINDS/HAIL&quot;   
-##  [3] &quot;THUNDERSTORM WINDS HAIL&quot;    &quot;HAIL 1.75)&quot;                
-##  [5] &quot;HAIL STORM&quot;                 &quot;HAIL 75&quot;                   
-##  [7] &quot;TORNADOES, TSTM WIND, HAIL&quot; &quot;SMALL HAIL&quot;                
-##  [9] &quot;HAIL 80&quot;                    &quot;FUNNEL CLOUD/HAIL&quot;         
-## [11] &quot;HAIL 0.75&quot;                  &quot;HAIL 1.00&quot;                 
-## [13] &quot;HAIL/WINDS&quot;                 &quot;HAIL/WIND&quot;                 
-## [15] &quot;HAIL 1.75&quot;                  &quot;WIND/HAIL&quot;                 
-## [17] &quot;THUNDERSTORM WINDS/ HAIL&quot;   &quot;HAIL 225&quot;                  
-## [19] &quot;HAIL 0.88&quot;                  &quot;DEEP HAIL&quot;                 
-## [21] &quot;HAIL 88&quot;                    &quot;HAIL 175&quot;                  
-## [23] &quot;HAIL 100&quot;                   &quot;HAIL 150&quot;                  
-## [25] &quot;HAIL 075&quot;                   &quot;HAIL 125&quot;                  
-## [27] &quot;HAIL 200&quot;                   &quot;HAIL FLOODING&quot;             
-## [29] &quot;HAIL DAMAGE&quot;                &quot;THUNDERSTORM HAIL&quot;         
-## [31] &quot;HAIL 088&quot;                   &quot;THUNDERSTORM WINDSHAIL&quot;    
-## [33] &quot;HAIL/ICY ROADS&quot;             &quot;HAIL ALOFT&quot;                
-## [35] &quot;THUNDERSTORM WIND/HAIL&quot;     &quot;HAIL 275&quot;                  
-## [37] &quot;HAIL 450&quot;                   &quot;HAILSTORM&quot;                 
-## [39] &quot;HAILSTORMS&quot;                 &quot;TSTM WIND/HAIL&quot;            
-## [41] &quot;small hail&quot;                 &quot;Hail(0.75)&quot;                
-## [43] &quot;Small Hail&quot;                 &quot;GUSTY WIND/HAIL&quot;           
-## [45] &quot;LATE SEASON HAIL&quot;           &quot;NON SEVERE HAIL&quot;           
-## [47] &quot;MARINE HAIL&quot;
+<pre><code>##  [1] &quot;Cold&quot;                         &quot;COLD&quot;                        
+##  [3] &quot;COLD AIR FUNNEL&quot;              &quot;COLD AIR FUNNELS&quot;            
+##  [5] &quot;COLD AIR TORNADO&quot;             &quot;Cold and Frost&quot;              
+##  [7] &quot;COLD AND FROST&quot;               &quot;COLD AND SNOW&quot;               
+##  [9] &quot;COLD AND WET CONDITIONS&quot;      &quot;Cold Temperature&quot;            
+## [11] &quot;COLD TEMPERATURES&quot;            &quot;COLD WAVE&quot;                   
+## [13] &quot;COLD WEATHER&quot;                 &quot;COLD WIND CHILL TEMPERATURES&quot;
+## [15] &quot;COLD/WIND CHILL&quot;              &quot;COLD/WINDS&quot;                  
+## [17] &quot;DROUGHT/EXCESSIVE HEAT&quot;       &quot;Excessive Cold&quot;              
+## [19] &quot;EXCESSIVE HEAT&quot;               &quot;EXCESSIVE HEAT/DROUGHT&quot;      
+## [21] &quot;Extended Cold&quot;                &quot;Extreme Cold&quot;                
+## [23] &quot;EXTREME COLD&quot;                 &quot;EXTREME COLD/WIND CHILL&quot;     
+## [25] &quot;EXTREME HEAT&quot;                 &quot;EXTREME/RECORD COLD&quot;         
+## [27] &quot;FOG AND COLD TEMPERATURES&quot;    &quot;HEAT&quot;                        
+## [29] &quot;HEAT DROUGHT&quot;                 &quot;Heat Wave&quot;                   
+## [31] &quot;HEAT WAVE&quot;                    &quot;HEAT WAVE DROUGHT&quot;           
+## [33] &quot;HEAT WAVES&quot;                   &quot;HEAT/DROUGHT&quot;                
+## [35] &quot;Heatburst&quot;                    &quot;HIGH WINDS/COLD&quot;             
+## [37] &quot;Prolong Cold&quot;                 &quot;PROLONG COLD&quot;                
+## [39] &quot;PROLONG COLD/SNOW&quot;            &quot;RECORD  COLD&quot;                
+## [41] &quot;Record Cold&quot;                  &quot;RECORD COLD&quot;                 
+## [43] &quot;RECORD COLD AND HIGH WIND&quot;    &quot;RECORD COLD/FROST&quot;           
+## [45] &quot;Record Heat&quot;                  &quot;RECORD HEAT&quot;                 
+## [47] &quot;RECORD HEAT WAVE&quot;             &quot;RECORD SNOW/COLD&quot;            
+## [49] &quot;RECORD/EXCESSIVE HEAT&quot;        &quot;SEVERE COLD&quot;                 
+## [51] &quot;SNOW AND COLD&quot;                &quot;SNOW/ BITTER COLD&quot;           
+## [53] &quot;SNOW/COLD&quot;                    &quot;SNOW\\COLD&quot;                  
+## [55] &quot;Unseasonable Cold&quot;            &quot;UNSEASONABLY COLD&quot;           
+## [57] &quot;UNUSUALLY COLD&quot;
 </code></pre>
 
-<p>Create an indicator for variations of <strong>Flood</strong>.</p>
+<p>Create an indicators for variations of <strong>Flood</strong> and <strong>Rain</strong>.
+These fall into the top-level category of <strong>Flood</strong>.</p>
 
-<pre><code class="r">regex &lt;- &quot;FLOOD&quot;
+<pre><code class="r">regexFlood &lt;- &quot;(\\bFL\\S+?D)&quot;
+regexRain &lt;- &quot;RAIN|PRECIP|SHOWER&quot;
+regex &lt;- paste(regexFlood, regexRain, sep = &quot;|&quot;)
 D &lt;- D[, `:=`(eventFlood, indicator(regex))]
 </code></pre>
 
-<pre><code>##   [1] &quot;ICE STORM/FLASH FLOOD&quot;          &quot;FLASH FLOOD&quot;                   
-##   [3] &quot;FLASH FLOODING&quot;                 &quot;FLOODING&quot;                      
-##   [5] &quot;FLOOD&quot;                          &quot;FLASH FLOODING/THUNDERSTORM WI&quot;
-##   [7] &quot;BREAKUP FLOODING&quot;               &quot;RIVER FLOOD&quot;                   
-##   [9] &quot;COASTAL FLOOD&quot;                  &quot;FLOOD WATCH/&quot;                  
-##  [11] &quot;FLASH FLOODS&quot;                   &quot;FLOODING/HEAVY RAIN&quot;           
-##  [13] &quot;HEAVY SURF COASTAL FLOODING&quot;    &quot;URBAN FLOODING&quot;                
-##  [15] &quot;URBAN/SMALL FLOODING&quot;           &quot;LOCAL FLOOD&quot;                   
-##  [17] &quot;FLOOD/FLASH FLOOD&quot;              &quot;FLOOD/RAIN/WINDS&quot;              
-##  [19] &quot;FLASH FLOOD WINDS&quot;              &quot;URBAN/SMALL STREAM FLOODING&quot;   
-##  [21] &quot;STREAM FLOODING&quot;                &quot;FLASH FLOOD/&quot;                  
-##  [23] &quot;FLOOD/RAIN/WIND&quot;                &quot;SMALL STREAM URBAN FLOOD&quot;      
-##  [25] &quot;URBAN FLOOD&quot;                    &quot;HEAVY RAIN/FLOODING&quot;           
-##  [27] &quot;COASTAL FLOODING&quot;               &quot;HIGH WINDS/FLOODING&quot;           
-##  [29] &quot;URBAN/SMALL STREAM FLOOD&quot;       &quot;MINOR FLOODING&quot;                
-##  [31] &quot;URBAN/SMALL STREAM  FLOOD&quot;      &quot;URBAN AND SMALL STREAM FLOOD&quot;  
-##  [33] &quot;SMALL STREAM FLOODING&quot;          &quot;FLOODS&quot;                        
-##  [35] &quot;SMALL STREAM AND URBAN FLOODIN&quot; &quot;SMALL STREAM/URBAN FLOOD&quot;      
-##  [37] &quot;SMALL STREAM AND URBAN FLOOD&quot;   &quot;RURAL FLOOD&quot;                   
-##  [39] &quot;THUNDERSTORM WINDS URBAN FLOOD&quot; &quot;MAJOR FLOOD&quot;                   
-##  [41] &quot;ICE JAM FLOODING&quot;               &quot;STREET FLOOD&quot;                  
-##  [43] &quot;SMALL STREAM FLOOD&quot;             &quot;LAKE FLOOD&quot;                    
-##  [45] &quot;URBAN AND SMALL STREAM FLOODIN&quot; &quot;RIVER AND STREAM FLOOD&quot;        
-##  [47] &quot;MINOR FLOOD&quot;                    &quot;HIGH WINDS/COASTAL FLOOD&quot;      
-##  [49] &quot;RIVER FLOODING&quot;                 &quot;FLOOD/RIVER FLOOD&quot;             
-##  [51] &quot;MUD SLIDES URBAN FLOODING&quot;      &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot; 
-##  [53] &quot;HAIL FLOODING&quot;                  &quot;THUNDERSTORM WINDS/FLASH FLOOD&quot;
-##  [55] &quot;HEAVY RAIN AND FLOOD&quot;           &quot;LOCAL FLASH FLOOD&quot;             
-##  [57] &quot;FLOOD/FLASH FLOODING&quot;           &quot;COASTAL/TIDAL FLOOD&quot;           
-##  [59] &quot;FLASH FLOOD/FLOOD&quot;              &quot;FLASH FLOOD FROM ICE JAMS&quot;     
-##  [61] &quot;FLASH FLOOD - HEAVY RAIN&quot;       &quot;FLASH FLOOD/ STREET&quot;           
-##  [63] &quot;FLASH FLOOD/HEAVY RAIN&quot;         &quot;HEAVY RAIN; URBAN FLOOD WINDS;&quot;
-##  [65] &quot;FLOOD FLASH&quot;                    &quot;FLOOD FLOOD/FLASH&quot;             
-##  [67] &quot;TIDAL FLOOD&quot;                    &quot;FLOOD/FLASH&quot;                   
-##  [69] &quot;HEAVY RAINS/FLOODING&quot;           &quot;THUNDERSTORM WINDS/FLOODING&quot;   
-##  [71] &quot;HIGHWAY FLOODING&quot;               &quot;FLASH FLOOD/ FLOOD&quot;            
-##  [73] &quot;HEAVY RAIN/MUDSLIDES/FLOOD&quot;     &quot;BEACH EROSION/COASTAL FLOOD&quot;   
-##  [75] &quot;SNOWMELT FLOODING&quot;              &quot;FLASH FLOODING/FLOOD&quot;          
-##  [77] &quot;BEACH FLOOD&quot;                    &quot;THUNDERSTORM WINDS/ FLOOD&quot;     
-##  [79] &quot;FLOOD &amp; HEAVY RAIN&quot;             &quot;FLOOD/FLASHFLOOD&quot;              
-##  [81] &quot;URBAN SMALL STREAM FLOOD&quot;       &quot;URBAN FLOOD LANDSLIDE&quot;         
-##  [83] &quot;URBAN FLOODS&quot;                   &quot;HEAVY RAIN/URBAN FLOOD&quot;        
-##  [85] &quot;FLASH FLOOD/LANDSLIDE&quot;          &quot;LANDSLIDE/URBAN FLOOD&quot;         
-##  [87] &quot;FLASH FLOOD LANDSLIDES&quot;         &quot;Minor Flooding&quot;                
-##  [89] &quot;Ice jam flood (minor&quot;           &quot;Coastal Flooding&quot;              
-##  [91] &quot;COASTALFLOOD&quot;                   &quot;Erosion/Cstl Flood&quot;            
-##  [93] &quot;Tidal Flooding&quot;                 &quot;River Flooding&quot;                
-##  [95] &quot;Flood/Flash Flood&quot;              &quot;STREET FLOODING&quot;               
-##  [97] &quot;Flood&quot;                          &quot;TIDAL FLOODING&quot;                
-##  [99] &quot; COASTAL FLOOD&quot;                 &quot;Urban Flooding&quot;                
-## [101] &quot;Urban flood&quot;                    &quot;Urban Flood&quot;                   
-## [103] &quot;Coastal Flood&quot;                  &quot;coastal flooding&quot;              
-## [105] &quot;Flood/Strong Wind&quot;              &quot;COASTAL FLOODING/EROSION&quot;      
-## [107] &quot;URBAN/STREET FLOODING&quot;          &quot;COASTAL  FLOODING/EROSION&quot;     
-## [109] &quot;FLOOD/FLASH/FLOOD&quot;              &quot; FLASH FLOOD&quot;                  
-## [111] &quot;CSTL FLOODING/EROSION&quot;          &quot;LAKESHORE FLOOD&quot;
+<pre><code>##   [1] &quot; COASTAL FLOOD&quot;                 &quot; FLASH FLOOD&quot;                  
+##   [3] &quot;BEACH EROSION/COASTAL FLOOD&quot;    &quot;BEACH FLOOD&quot;                   
+##   [5] &quot;BELOW NORMAL PRECIPITATION&quot;     &quot;BLIZZARD/FREEZING RAIN&quot;        
+##   [7] &quot;BREAKUP FLOODING&quot;               &quot;COASTAL  FLOODING/EROSION&quot;     
+##   [9] &quot;Coastal Flood&quot;                  &quot;COASTAL FLOOD&quot;                 
+##  [11] &quot;coastal flooding&quot;               &quot;Coastal Flooding&quot;              
+##  [13] &quot;COASTAL FLOODING&quot;               &quot;COASTAL FLOODING/EROSION&quot;      
+##  [15] &quot;COASTAL/TIDAL FLOOD&quot;            &quot;CSTL FLOODING/EROSION&quot;         
+##  [17] &quot;EARLY RAIN&quot;                     &quot;Erosion/Cstl Flood&quot;            
+##  [19] &quot;EXCESSIVE PRECIPITATION&quot;        &quot;EXCESSIVE RAIN&quot;                
+##  [21] &quot;EXCESSIVE RAINFALL&quot;             &quot;FLASH FLOOD&quot;                   
+##  [23] &quot;FLASH FLOOD - HEAVY RAIN&quot;       &quot;FLASH FLOOD FROM ICE JAMS&quot;     
+##  [25] &quot;FLASH FLOOD LANDSLIDES&quot;         &quot;FLASH FLOOD WINDS&quot;             
+##  [27] &quot;FLASH FLOOD/&quot;                   &quot;FLASH FLOOD/ FLOOD&quot;            
+##  [29] &quot;FLASH FLOOD/ STREET&quot;            &quot;FLASH FLOOD/FLOOD&quot;             
+##  [31] &quot;FLASH FLOOD/HEAVY RAIN&quot;         &quot;FLASH FLOOD/LANDSLIDE&quot;         
+##  [33] &quot;FLASH FLOODING&quot;                 &quot;FLASH FLOODING/FLOOD&quot;          
+##  [35] &quot;FLASH FLOODING/THUNDERSTORM WI&quot; &quot;FLASH FLOODS&quot;                  
+##  [37] &quot;FLASH FLOOODING&quot;                &quot;Flood&quot;                         
+##  [39] &quot;FLOOD&quot;                          &quot;FLOOD &amp; HEAVY RAIN&quot;            
+##  [41] &quot;FLOOD FLASH&quot;                    &quot;FLOOD FLOOD/FLASH&quot;             
+##  [43] &quot;FLOOD WATCH/&quot;                   &quot;FLOOD/FLASH&quot;                   
+##  [45] &quot;Flood/Flash Flood&quot;              &quot;FLOOD/FLASH FLOOD&quot;             
+##  [47] &quot;FLOOD/FLASH FLOODING&quot;           &quot;FLOOD/FLASH/FLOOD&quot;             
+##  [49] &quot;FLOOD/FLASHFLOOD&quot;               &quot;FLOOD/RAIN/WIND&quot;               
+##  [51] &quot;FLOOD/RAIN/WINDS&quot;               &quot;FLOOD/RIVER FLOOD&quot;             
+##  [53] &quot;Flood/Strong Wind&quot;              &quot;FLOODING&quot;                      
+##  [55] &quot;FLOODING/HEAVY RAIN&quot;            &quot;FLOODS&quot;                        
+##  [57] &quot;Freezing rain&quot;                  &quot;Freezing Rain&quot;                 
+##  [59] &quot;FREEZING RAIN&quot;                  &quot;FREEZING RAIN AND SLEET&quot;       
+##  [61] &quot;FREEZING RAIN AND SNOW&quot;         &quot;FREEZING RAIN SLEET AND&quot;       
+##  [63] &quot;FREEZING RAIN SLEET AND LIGHT&quot;  &quot;FREEZING RAIN/SLEET&quot;           
+##  [65] &quot;FREEZING RAIN/SNOW&quot;             &quot;GUSTY WIND/HVY RAIN&quot;           
+##  [67] &quot;Gusty wind/rain&quot;                &quot;HAIL FLOODING&quot;                 
+##  [69] &quot;HEAVY PRECIPATATION&quot;            &quot;Heavy Precipitation&quot;           
+##  [71] &quot;HEAVY PRECIPITATION&quot;            &quot;Heavy rain&quot;                    
+##  [73] &quot;Heavy Rain&quot;                     &quot;HEAVY RAIN&quot;                    
+##  [75] &quot;HEAVY RAIN AND FLOOD&quot;           &quot;Heavy Rain and Wind&quot;           
+##  [77] &quot;HEAVY RAIN EFFECTS&quot;             &quot;HEAVY RAIN/FLOODING&quot;           
+##  [79] &quot;Heavy Rain/High Surf&quot;           &quot;HEAVY RAIN/LIGHTNING&quot;          
+##  [81] &quot;HEAVY RAIN/MUDSLIDES/FLOOD&quot;     &quot;HEAVY RAIN/SEVERE WEATHER&quot;     
+##  [83] &quot;HEAVY RAIN/SMALL STREAM URBAN&quot;  &quot;HEAVY RAIN/SNOW&quot;               
+##  [85] &quot;HEAVY RAIN/URBAN FLOOD&quot;         &quot;HEAVY RAIN/WIND&quot;               
+##  [87] &quot;HEAVY RAIN; URBAN FLOOD WINDS;&quot; &quot;HEAVY RAINFALL&quot;                
+##  [89] &quot;HEAVY RAINS&quot;                    &quot;HEAVY RAINS/FLOODING&quot;          
+##  [91] &quot;HEAVY SHOWER&quot;                   &quot;HEAVY SHOWERS&quot;                 
+##  [93] &quot;HEAVY SNOW   FREEZING RAIN&quot;     &quot;Heavy snow shower&quot;             
+##  [95] &quot;HEAVY SNOW/FREEZING RAIN&quot;       &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot; 
+##  [97] &quot;HEAVY SURF COASTAL FLOODING&quot;    &quot;HIGH WINDS HEAVY RAINS&quot;        
+##  [99] &quot;HIGH WINDS/COASTAL FLOOD&quot;       &quot;HIGH WINDS/FLOODING&quot;           
+## [101] &quot;HIGH WINDS/HEAVY RAIN&quot;          &quot;HIGHWAY FLOODING&quot;              
+## [103] &quot;HVY RAIN&quot;                       &quot;Ice jam flood (minor&quot;          
+## [105] &quot;ICE JAM FLOODING&quot;               &quot;ICE STORM/FLASH FLOOD&quot;         
+## [107] &quot;LAKE FLOOD&quot;                     &quot;LAKESHORE FLOOD&quot;               
+## [109] &quot;LANDSLIDE/URBAN FLOOD&quot;          &quot;LIGHT FREEZING RAIN&quot;           
+## [111] &quot;LIGHT SNOW/FREEZING PRECIP&quot;     &quot;LIGHTNING AND HEAVY RAIN&quot;      
+## [113] &quot;LIGHTNING/HEAVY RAIN&quot;           &quot;LOCAL FLASH FLOOD&quot;             
+## [115] &quot;LOCAL FLOOD&quot;                    &quot;LOCALLY HEAVY RAIN&quot;            
+## [117] &quot;MAJOR FLOOD&quot;                    &quot;MINOR FLOOD&quot;                   
+## [119] &quot;Minor Flooding&quot;                 &quot;MINOR FLOODING&quot;                
+## [121] &quot;MIXED PRECIP&quot;                   &quot;Mixed Precipitation&quot;           
+## [123] &quot;MIXED PRECIPITATION&quot;            &quot;MONTHLY PRECIPITATION&quot;         
+## [125] &quot;Monthly Rainfall&quot;               &quot;MONTHLY RAINFALL&quot;              
+## [127] &quot;MUD SLIDES URBAN FLOODING&quot;      &quot;NORMAL PRECIPITATION&quot;          
+## [129] &quot;PROLONGED RAIN&quot;                 &quot;RAIN&quot;                          
+## [131] &quot;RAIN (HEAVY)&quot;                   &quot;RAIN AND WIND&quot;                 
+## [133] &quot;Rain Damage&quot;                    &quot;RAIN/SNOW&quot;                     
+## [135] &quot;RAIN/WIND&quot;                      &quot;RAINSTORM&quot;                     
+## [137] &quot;RECORD LOW RAINFALL&quot;            &quot;RECORD PRECIPITATION&quot;          
+## [139] &quot;RECORD RAINFALL&quot;                &quot;RECORD/EXCESSIVE RAINFALL&quot;     
+## [141] &quot;REMNANTS OF FLOYD&quot;              &quot;RIVER AND STREAM FLOOD&quot;        
+## [143] &quot;RIVER FLOOD&quot;                    &quot;River Flooding&quot;                
+## [145] &quot;RIVER FLOODING&quot;                 &quot;RURAL FLOOD&quot;                   
+## [147] &quot;SLEET &amp; FREEZING RAIN&quot;          &quot;SLEET/FREEZING RAIN&quot;           
+## [149] &quot;SLEET/RAIN/SNOW&quot;                &quot;SMALL STREAM AND URBAN FLOOD&quot;  
+## [151] &quot;SMALL STREAM AND URBAN FLOODIN&quot; &quot;SMALL STREAM FLOOD&quot;            
+## [153] &quot;SMALL STREAM FLOODING&quot;          &quot;SMALL STREAM URBAN FLOOD&quot;      
+## [155] &quot;SMALL STREAM/URBAN FLOOD&quot;       &quot;SNOW FREEZING RAIN&quot;            
+## [157] &quot;SNOW SHOWERS&quot;                   &quot;SNOW/FREEZING RAIN&quot;            
+## [159] &quot;SNOW/RAIN&quot;                      &quot;SNOW/RAIN/SLEET&quot;               
+## [161] &quot;SNOW/SLEET/FREEZING RAIN&quot;       &quot;SNOW/SLEET/RAIN&quot;               
+## [163] &quot;SNOWMELT FLOODING&quot;              &quot;STREAM FLOODING&quot;               
+## [165] &quot;STREET FLOOD&quot;                   &quot;STREET FLOODING&quot;               
+## [167] &quot;Thundersnow shower&quot;             &quot;THUNDERSTORM WINDS HEAVY RAIN&quot; 
+## [169] &quot;THUNDERSTORM WINDS URBAN FLOOD&quot; &quot;THUNDERSTORM WINDS/ FLOOD&quot;     
+## [171] &quot;THUNDERSTORM WINDS/FLASH FLOOD&quot; &quot;THUNDERSTORM WINDS/FLOODING&quot;   
+## [173] &quot;THUNDERSTORM WINDS/HEAVY RAIN&quot;  &quot;TIDAL FLOOD&quot;                   
+## [175] &quot;Tidal Flooding&quot;                 &quot;TIDAL FLOODING&quot;                
+## [177] &quot;TORRENTIAL RAIN&quot;                &quot;Torrential Rainfall&quot;           
+## [179] &quot;TSTM HEAVY RAIN&quot;                &quot;UNSEASONAL RAIN&quot;               
+## [181] &quot;URBAN AND SMALL STREAM FLOOD&quot;   &quot;URBAN AND SMALL STREAM FLOODIN&quot;
+## [183] &quot;Urban flood&quot;                    &quot;Urban Flood&quot;                   
+## [185] &quot;URBAN FLOOD&quot;                    &quot;URBAN FLOOD LANDSLIDE&quot;         
+## [187] &quot;Urban Flooding&quot;                 &quot;URBAN FLOODING&quot;                
+## [189] &quot;URBAN FLOODS&quot;                   &quot;URBAN SMALL STREAM FLOOD&quot;      
+## [191] &quot;URBAN/SMALL FLOODING&quot;           &quot;URBAN/SMALL STREAM  FLOOD&quot;     
+## [193] &quot;URBAN/SMALL STREAM FLOOD&quot;       &quot;URBAN/SMALL STREAM FLOODING&quot;   
+## [195] &quot;URBAN/STREET FLOODING&quot;
 </code></pre>
 
-<p>Create an indicator for variations of <strong>Tornado</strong>.</p>
-
-<pre><code class="r">regex &lt;- &quot;(NADO)|(\\bTOR\\S+?O\\b)&quot;
-D &lt;- D[, `:=`(eventTornado, indicator(regex))]
-</code></pre>
-
-<pre><code>##  [1] &quot;TORNADO&quot;                    &quot;TORNADO F0&quot;                
-##  [3] &quot;GUSTNADO AND&quot;               &quot;TORNADOS&quot;                  
-##  [5] &quot;WATERSPOUT/TORNADO&quot;         &quot;WATERSPOUT TORNADO&quot;        
-##  [7] &quot;WATERSPOUT-TORNADO&quot;         &quot;TORNADOES, TSTM WIND, HAIL&quot;
-##  [9] &quot;GUSTNADO&quot;                   &quot;COLD AIR TORNADO&quot;          
-## [11] &quot;WATERSPOUT/ TORNADO&quot;        &quot;TORNADO F3&quot;                
-## [13] &quot;TORNDAO&quot;                    &quot;TORNADO F1&quot;                
-## [15] &quot;TORNADO/WATERSPOUT&quot;         &quot;TORNADO F2&quot;                
-## [17] &quot;TORNADOES&quot;                  &quot;TORNADO DEBRIS&quot;
-</code></pre>
-
-<p>Create an indicator for variations of <strong>Lightning</strong>.</p>
-
-<pre><code class="r">regex &lt;- &quot;\\bL\\S+?G\\b&quot;
-D &lt;- D[, `:=`(eventLightning, indicator(regex))]
-</code></pre>
-
-<pre><code>##  [1] &quot;LIGHTNING&quot;                      &quot;THUNDERSTORM WINDS LIGHTNING&quot;  
-##  [3] &quot;LIGHTING&quot;                       &quot;LIGHTNING AND HEAVY RAIN&quot;      
-##  [5] &quot;HEAVY RAIN/LIGHTNING&quot;           &quot;LIGHTNING/HEAVY RAIN&quot;          
-##  [7] &quot;LIGHTNING THUNDERSTORM WINDSS&quot;  &quot;LIGHTNING THUNDERSTORM WINDS&quot;  
-##  [9] &quot;LIGHTNING INJURY&quot;               &quot;LIGHTNING AND THUNDERSTORM WIN&quot;
-## [11] &quot;LIGNTNING&quot;                      &quot;THUNDERSTORM WIND/LIGHTNING&quot;   
-## [13] &quot;LIGHTNING.&quot;                     &quot;LIGHTNING FIRE&quot;                
-## [15] &quot;LIGHTNING DAMAGE&quot;               &quot;LIGHTNING AND WINDS&quot;           
-## [17] &quot;LIGHTNING  WAUSEON&quot;             &quot;TSTM WIND AND LIGHTNING&quot;       
-## [19] &quot; LIGHTNING&quot;
-</code></pre>
-
-<p>Create an indicator for variations of <strong>Snow, Ice, Freeze, or Winter Weather</strong>.</p>
+<p>Create an indicator for variations of <strong>Snow</strong>, <strong>Ice</strong>, <strong>Freeze</strong>, or <strong>Winter Weather</strong>.
+These fall into the top-level category of <strong>Winter</strong>.</p>
 
 <pre><code class="r">regex &lt;- &quot;(SNOW)|(ICE)|(ICY)|(FREEZ)|(WINT)&quot;
-D &lt;- D[, `:=`(eventSnow, indicator(regex))]
+D &lt;- D[, `:=`(eventWinter, indicator(regex))]
 </code></pre>
 
-<pre><code>##   [1] &quot;FREEZING RAIN&quot;                  &quot;SNOW&quot;                          
-##   [3] &quot;ICE STORM/FLASH FLOOD&quot;          &quot;SNOW/ICE&quot;                      
-##   [5] &quot;WINTER STORM&quot;                   &quot;HEAVY SNOW&quot;                    
-##   [7] &quot;FREEZE&quot;                         &quot;HIGH WIND/BLIZZARD/FREEZING RA&quot;
-##   [9] &quot;HIGH WIND AND HEAVY SNOW&quot;       &quot;ICE STORM&quot;                     
-##  [11] &quot;HEAVY SNOW/HIGH&quot;                &quot;HEAVY SNOW/HIGH WINDS/FREEZING&quot;
-##  [13] &quot;HIGH WIND/HEAVY SNOW&quot;           &quot;RECORD SNOWFALL&quot;               
-##  [15] &quot;HEAVY SNOW/WIND&quot;                &quot;WINTER STORM/HIGH WIND&quot;        
-##  [17] &quot;WINTER STORM/HIGH WINDS&quot;        &quot;SNOW AND WIND&quot;                 
-##  [19] &quot;WINTER STORM HIGH WINDS&quot;        &quot;WINTER STORMS&quot;                 
-##  [21] &quot;HEAVY SNOWPACK&quot;                 &quot;ICE&quot;                           
-##  [23] &quot;BLIZZARD/HEAVY SNOW&quot;            &quot;HEAVY SNOW/HIGH WINDS&quot;         
-##  [25] &quot;BLOWING SNOW&quot;                   &quot;FREEZING DRIZZLE&quot;              
-##  [27] &quot;LIGHT SNOW AND SLEET&quot;           &quot;FIRST SNOW&quot;                    
-##  [29] &quot;FREEZING RAIN AND SLEET&quot;        &quot;WINTRY MIX&quot;                    
-##  [31] &quot;WINTER WEATHER&quot;                 &quot;SLEET/RAIN/SNOW&quot;               
-##  [33] &quot;RAIN/SNOW&quot;                      &quot;SNOW/RAIN/SLEET&quot;               
-##  [35] &quot;DAMAGING FREEZE&quot;                &quot;HEAVY SNOW/HIGH WIND&quot;          
-##  [37] &quot;FREEZING RAIN/SNOW&quot;             &quot;THUNDERSNOW&quot;                   
-##  [39] &quot;HEAVY RAIN/SNOW&quot;                &quot;SNOW/SLEET/FREEZING RAIN&quot;      
-##  [41] &quot;GLAZE ICE&quot;                      &quot;EARLY SNOW&quot;                    
-##  [43] &quot;HEAVY SNOW/BLOWING SNOW&quot;        &quot;SLEET/ICE STORM&quot;               
-##  [45] &quot;BLOWING SNOW- EXTREME WIND CHI&quot; &quot;SNOW AND HEAVY SNOW&quot;           
-##  [47] &quot;SNOW/HEAVY SNOW&quot;                &quot;FREEZING RAIN/SLEET&quot;           
-##  [49] &quot;ICE JAM FLOODING&quot;               &quot;SNOW- HIGH WIND- WIND CHILL&quot;   
-##  [51] &quot;ICE/SNOW&quot;                       &quot;HEAVY SNOW/BLIZZARD&quot;           
-##  [53] &quot;SNOW AND ICE&quot;                   &quot;SNOWSTORM&quot;                     
-##  [55] &quot;SNOW AND ICE STORM&quot;             &quot;HEAVY SNOW/SLEET&quot;              
-##  [57] &quot;AGRICULTURAL FREEZE&quot;            &quot;HEAVY SNOW/ICE STORM&quot;          
-##  [59] &quot;HEAVY SNOW AND ICE STORM&quot;       &quot;SNOW/RAIN&quot;                     
-##  [61] &quot;ICE FLOES&quot;                      &quot;SNOW SQUALLS&quot;                  
-##  [63] &quot;SNOW SQUALL&quot;                    &quot;BLIZZARD/FREEZING RAIN&quot;        
-##  [65] &quot;HEAVY LAKE SNOW&quot;                &quot;HEAVY SNOW/FREEZING RAIN&quot;      
-##  [67] &quot;LAKE EFFECT SNOW&quot;               &quot;HEAVY WET SNOW&quot;                
-##  [69] &quot;BLIZZARD AND HEAVY SNOW&quot;        &quot;HEAVY SNOW AND ICE&quot;            
-##  [71] &quot;ICE STORM AND SNOW&quot;             &quot;HEAVY SNOW ANDBLOWING SNOW&quot;    
-##  [73] &quot;HEAVY SNOW/ICE&quot;                 &quot;BLOWING SNOW &amp; EXTREME WIND CH&quot;
-##  [75] &quot;GLAZE/ICE STORM&quot;                &quot;HEAVY SNOW/WINTER STORM&quot;       
-##  [77] &quot;BLIZZARD/WINTER STORM&quot;          &quot;ICE JAM&quot;                       
-##  [79] &quot;FROST\\FREEZE&quot;                  &quot;HARD FREEZE&quot;                   
-##  [81] &quot;HEAVY SNOW AND HIGH WINDS&quot;      &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot; 
-##  [83] &quot;WET SNOW&quot;                       &quot;SNOW/ICE STORM&quot;                
-##  [85] &quot;LIGHT SNOW&quot;                     &quot;RECORD SNOW&quot;                   
-##  [87] &quot;SNOW/COLD&quot;                      &quot;FLASH FLOOD FROM ICE JAMS&quot;     
-##  [89] &quot;HEAVY SNOW SQUALLS&quot;             &quot;HEAVY SNOW/SQUALLS&quot;            
-##  [91] &quot;HEAVY SNOW-SQUALLS&quot;             &quot;ICY ROADS&quot;                     
-##  [93] &quot;SNOW FREEZING RAIN&quot;             &quot;LACK OF SNOW&quot;                  
-##  [95] &quot;SNOW/SLEET&quot;                     &quot;SNOW/FREEZING RAIN&quot;            
-##  [97] &quot;SNOW DROUGHT&quot;                   &quot;HEAVY SNOW   FREEZING RAIN&quot;    
-##  [99] &quot;ICE AND SNOW&quot;                   &quot;FREEZING RAIN AND SNOW&quot;        
-## [101] &quot;FREEZING RAIN SLEET AND&quot;        &quot;HEAVY SNOW &amp; ICE&quot;              
-## [103] &quot;FREEZING DRIZZLE AND FREEZING&quot;  &quot;HAIL/ICY ROADS&quot;                
-## [105] &quot;SNOW SHOWERS&quot;                   &quot;HEAVY SNOW/BLIZZARD/AVALANCHE&quot; 
-## [107] &quot;RECORD SNOW/COLD&quot;               &quot;FREEZING RAIN SLEET AND LIGHT&quot; 
-## [109] &quot;SLEET &amp; FREEZING RAIN&quot;          &quot;SNOW/ BITTER COLD&quot;             
-## [111] &quot;SNOW SLEET&quot;                     &quot;EARLY FREEZE&quot;                  
-## [113] &quot;ICE/STRONG WINDS&quot;               &quot;SNOW/HIGH WINDS&quot;               
-## [115] &quot;HIGH WINDS/SNOW&quot;                &quot;SNOWMELT FLOODING&quot;             
-## [117] &quot;HEAVY SNOW AND STRONG WINDS&quot;    &quot;SNOW ACCUMULATION&quot;             
-## [119] &quot;BLOWING SNOW/EXTREME WIND CHIL&quot; &quot;SNOW/ ICE&quot;                     
-## [121] &quot;SNOW/BLOWING SNOW&quot;              &quot;NEAR RECORD SNOW&quot;              
-## [123] &quot;SLEET/SNOW&quot;                     &quot;SNOW/SLEET/RAIN&quot;               
-## [125] &quot;SNOW AND COLD&quot;                  &quot;PROLONG COLD/SNOW&quot;             
-## [127] &quot;SNOW\\COLD&quot;                     &quot;WINTER MIX&quot;                    
-## [129] &quot;SNOWFALL RECORD&quot;                &quot;HEAVY SNOW AND&quot;                
-## [131] &quot;LAKE-EFFECT SNOW&quot;               &quot;Ice jam flood (minor&quot;          
-## [133] &quot;Snow&quot;                           &quot;Freeze&quot;                        
-## [135] &quot;Snow Squalls&quot;                   &quot;Light Snow/Flurries&quot;           
-## [137] &quot;Damaging Freeze&quot;                &quot;Icy Roads&quot;                     
-## [139] &quot;Wintry Mix&quot;                     &quot;blowing snow&quot;                  
-## [141] &quot;Ice Fog&quot;                        &quot;Freezing Rain&quot;                 
-## [143] &quot;Late-season Snowfall&quot;           &quot;Winter Weather&quot;                
-## [145] &quot;Snow squalls&quot;                   &quot;Ice/Snow&quot;                      
-## [147] &quot;Snow Accumulation&quot;              &quot;Freezing Fog&quot;                  
-## [149] &quot;Drifting Snow&quot;                  &quot;Heavy snow shower&quot;             
-## [151] &quot;LATE SNOW&quot;                      &quot;Record May Snow&quot;               
-## [153] &quot;Record Winter Snow&quot;             &quot;Light snow&quot;                    
-## [155] &quot;Late Season Snowfall&quot;           &quot;Light Snow&quot;                    
-## [157] &quot;Black Ice&quot;                      &quot;Snow and Ice&quot;                  
-## [159] &quot;Freezing Spray&quot;                 &quot;Light Snowfall&quot;                
-## [161] &quot;Freezing Drizzle&quot;               &quot;Blowing Snow&quot;                  
-## [163] &quot;Early snowfall&quot;                 &quot;Monthly Snowfall&quot;              
-## [165] &quot;Seasonal Snowfall&quot;              &quot;Thundersnow shower&quot;            
-## [167] &quot;COLD AND SNOW&quot;                  &quot;SLEET/FREEZING RAIN&quot;           
-## [169] &quot;BLACK ICE&quot;                      &quot;Wintry mix&quot;                    
-## [171] &quot;Frost/Freeze&quot;                   &quot;LATE FREEZE&quot;                   
-## [173] &quot;Lake Effect Snow&quot;               &quot;Snow and sleet&quot;                
-## [175] &quot;Freezing rain&quot;                  &quot;Icestorm/Blizzard&quot;             
-## [177] &quot;Freezing drizzle&quot;               &quot;Mountain Snows&quot;                
-## [179] &quot;WINTERY MIX&quot;                    &quot;MODERATE SNOW&quot;                 
-## [181] &quot;MODERATE SNOWFALL&quot;              &quot;ICE PELLETS&quot;                   
-## [183] &quot;SNOW AND SLEET&quot;                 &quot;LIGHT SNOW/FREEZING PRECIP&quot;    
-## [185] &quot;EARLY SNOWFALL&quot;                 &quot;FREEZING FOG&quot;                  
-## [187] &quot;EXCESSIVE SNOW&quot;                 &quot;LIGHT FREEZING RAIN&quot;           
-## [189] &quot;MONTHLY SNOWFALL&quot;               &quot;ICE ROADS&quot;                     
-## [191] &quot;LATE SEASON SNOW&quot;               &quot;WINTER WEATHER MIX&quot;            
-## [193] &quot;SNOW ADVISORY&quot;                  &quot;UNUSUALLY LATE SNOW&quot;           
-## [195] &quot;ACCUMULATED SNOWFALL&quot;           &quot;FALLING SNOW/ICE&quot;              
-## [197] &quot;PATCHY ICE&quot;                     &quot;FROST/FREEZE&quot;                  
-## [199] &quot;WINTER WEATHER/MIX&quot;             &quot;ICE ON ROAD&quot;
-</code></pre>
-
-<p>Create an indicator for variations of <strong>Rain</strong>.</p>
-
-<pre><code class="r">regex &lt;- &quot;RAIN&quot;
-D &lt;- D[, `:=`(eventRain, indicator(regex))]
-</code></pre>
-
-<pre><code>##  [1] &quot;FREEZING RAIN&quot;                  &quot;HEAVY RAIN&quot;                    
-##  [3] &quot;HEAVY RAINS&quot;                    &quot;LIGHTNING AND HEAVY RAIN&quot;      
-##  [5] &quot;HEAVY RAIN/LIGHTNING&quot;           &quot;LIGHTNING/HEAVY RAIN&quot;          
-##  [7] &quot;HIGH WINDS HEAVY RAINS&quot;         &quot;HIGH WINDS/HEAVY RAIN&quot;         
-##  [9] &quot;RECORD RAINFALL&quot;                &quot;FLOODING/HEAVY RAIN&quot;           
-## [11] &quot;RAINSTORM&quot;                      &quot;FLOOD/RAIN/WINDS&quot;              
-## [13] &quot;FLOOD/RAIN/WIND&quot;                &quot;HEAVY RAIN/FLOODING&quot;           
-## [15] &quot;FREEZING RAIN AND SLEET&quot;        &quot;SLEET/RAIN/SNOW&quot;               
-## [17] &quot;RAIN/SNOW&quot;                      &quot;SNOW/RAIN/SLEET&quot;               
-## [19] &quot;FREEZING RAIN/SNOW&quot;             &quot;HEAVY RAIN/SNOW&quot;               
-## [21] &quot;SNOW/SLEET/FREEZING RAIN&quot;       &quot;FREEZING RAIN/SLEET&quot;           
-## [23] &quot;HEAVY RAIN/SEVERE WEATHER&quot;      &quot;RAIN&quot;                          
-## [25] &quot;SNOW/RAIN&quot;                      &quot;BLIZZARD/FREEZING RAIN&quot;        
-## [27] &quot;HEAVY SNOW/FREEZING RAIN&quot;       &quot;THUNDERSTORM WINDS/HEAVY RAIN&quot; 
-## [29] &quot;HVY RAIN&quot;                       &quot;HEAVY RAIN AND FLOOD&quot;          
-## [31] &quot;RAIN AND WIND&quot;                  &quot;EXCESSIVE RAIN&quot;                
-## [33] &quot;SNOW FREEZING RAIN&quot;             &quot;SNOW/FREEZING RAIN&quot;            
-## [35] &quot;TORRENTIAL RAIN&quot;                &quot;FLASH FLOOD - HEAVY RAIN&quot;      
-## [37] &quot;HEAVY SNOW   FREEZING RAIN&quot;     &quot;FREEZING RAIN AND SNOW&quot;        
-## [39] &quot;FREEZING RAIN SLEET AND&quot;        &quot;FLASH FLOOD/HEAVY RAIN&quot;        
-## [41] &quot;HEAVY RAIN; URBAN FLOOD WINDS;&quot; &quot;RAIN/WIND&quot;                     
-## [43] &quot;FREEZING RAIN SLEET AND LIGHT&quot;  &quot;RECORD/EXCESSIVE RAINFALL&quot;     
-## [45] &quot;SLEET &amp; FREEZING RAIN&quot;          &quot;HEAVY RAINS/FLOODING&quot;          
-## [47] &quot;HEAVY RAIN/MUDSLIDES/FLOOD&quot;     &quot;EXCESSIVE RAINFALL&quot;            
-## [49] &quot;HEAVY RAINFALL&quot;                 &quot;THUNDERSTORM WINDS HEAVY RAIN&quot; 
-## [51] &quot;SNOW/SLEET/RAIN&quot;                &quot;FLOOD &amp; HEAVY RAIN&quot;            
-## [53] &quot;HEAVY RAIN/URBAN FLOOD&quot;         &quot;HEAVY RAIN/SMALL STREAM URBAN&quot; 
-## [55] &quot;Heavy Rain&quot;                     &quot;Heavy Rain and Wind&quot;           
-## [57] &quot;Heavy Rain/High Surf&quot;           &quot;Rain Damage&quot;                   
-## [59] &quot;Torrential Rainfall&quot;            &quot;Freezing Rain&quot;                 
-## [61] &quot;HEAVY RAIN/WIND&quot;                &quot;Heavy rain&quot;                    
-## [63] &quot;Gusty wind/rain&quot;                &quot;GUSTY WIND/HVY RAIN&quot;           
-## [65] &quot;Monthly Rainfall&quot;               &quot;SLEET/FREEZING RAIN&quot;           
-## [67] &quot;TSTM HEAVY RAIN&quot;                &quot;RAIN (HEAVY)&quot;                  
-## [69] &quot;Freezing rain&quot;                  &quot;UNSEASONAL RAIN&quot;               
-## [71] &quot;EARLY RAIN&quot;                     &quot;PROLONGED RAIN&quot;                
-## [73] &quot;MONTHLY RAINFALL&quot;               &quot;LIGHT FREEZING RAIN&quot;           
-## [75] &quot;LOCALLY HEAVY RAIN&quot;             &quot;RECORD LOW RAINFALL&quot;           
-## [77] &quot;HEAVY RAIN EFFECTS&quot;
+<pre><code>##   [1] &quot;ACCUMULATED SNOWFALL&quot;           &quot;AGRICULTURAL FREEZE&quot;           
+##   [3] &quot;Black Ice&quot;                      &quot;BLACK ICE&quot;                     
+##   [5] &quot;BLIZZARD AND HEAVY SNOW&quot;        &quot;BLIZZARD/FREEZING RAIN&quot;        
+##   [7] &quot;BLIZZARD/HEAVY SNOW&quot;            &quot;BLIZZARD/WINTER STORM&quot;         
+##   [9] &quot;blowing snow&quot;                   &quot;Blowing Snow&quot;                  
+##  [11] &quot;BLOWING SNOW&quot;                   &quot;BLOWING SNOW- EXTREME WIND CHI&quot;
+##  [13] &quot;BLOWING SNOW &amp; EXTREME WIND CH&quot; &quot;BLOWING SNOW/EXTREME WIND CHIL&quot;
+##  [15] &quot;COLD AND SNOW&quot;                  &quot;Damaging Freeze&quot;               
+##  [17] &quot;DAMAGING FREEZE&quot;                &quot;Drifting Snow&quot;                 
+##  [19] &quot;EARLY FREEZE&quot;                   &quot;EARLY SNOW&quot;                    
+##  [21] &quot;Early snowfall&quot;                 &quot;EARLY SNOWFALL&quot;                
+##  [23] &quot;EXCESSIVE SNOW&quot;                 &quot;FALLING SNOW/ICE&quot;              
+##  [25] &quot;FIRST SNOW&quot;                     &quot;FLASH FLOOD FROM ICE JAMS&quot;     
+##  [27] &quot;Freeze&quot;                         &quot;FREEZE&quot;                        
+##  [29] &quot;Freezing drizzle&quot;               &quot;Freezing Drizzle&quot;              
+##  [31] &quot;FREEZING DRIZZLE&quot;               &quot;FREEZING DRIZZLE AND FREEZING&quot; 
+##  [33] &quot;Freezing Fog&quot;                   &quot;FREEZING FOG&quot;                  
+##  [35] &quot;Freezing rain&quot;                  &quot;Freezing Rain&quot;                 
+##  [37] &quot;FREEZING RAIN&quot;                  &quot;FREEZING RAIN AND SLEET&quot;       
+##  [39] &quot;FREEZING RAIN AND SNOW&quot;         &quot;FREEZING RAIN SLEET AND&quot;       
+##  [41] &quot;FREEZING RAIN SLEET AND LIGHT&quot;  &quot;FREEZING RAIN/SLEET&quot;           
+##  [43] &quot;FREEZING RAIN/SNOW&quot;             &quot;Freezing Spray&quot;                
+##  [45] &quot;Frost/Freeze&quot;                   &quot;FROST/FREEZE&quot;                  
+##  [47] &quot;FROST\\FREEZE&quot;                  &quot;GLAZE ICE&quot;                     
+##  [49] &quot;GLAZE/ICE STORM&quot;                &quot;HAIL/ICY ROADS&quot;                
+##  [51] &quot;HARD FREEZE&quot;                    &quot;HEAVY LAKE SNOW&quot;               
+##  [53] &quot;HEAVY RAIN/SNOW&quot;                &quot;HEAVY SNOW&quot;                    
+##  [55] &quot;HEAVY SNOW-SQUALLS&quot;             &quot;HEAVY SNOW   FREEZING RAIN&quot;    
+##  [57] &quot;HEAVY SNOW &amp; ICE&quot;               &quot;HEAVY SNOW AND&quot;                
+##  [59] &quot;HEAVY SNOW AND HIGH WINDS&quot;      &quot;HEAVY SNOW AND ICE&quot;            
+##  [61] &quot;HEAVY SNOW AND ICE STORM&quot;       &quot;HEAVY SNOW AND STRONG WINDS&quot;   
+##  [63] &quot;HEAVY SNOW ANDBLOWING SNOW&quot;     &quot;Heavy snow shower&quot;             
+##  [65] &quot;HEAVY SNOW SQUALLS&quot;             &quot;HEAVY SNOW/BLIZZARD&quot;           
+##  [67] &quot;HEAVY SNOW/BLIZZARD/AVALANCHE&quot;  &quot;HEAVY SNOW/BLOWING SNOW&quot;       
+##  [69] &quot;HEAVY SNOW/FREEZING RAIN&quot;       &quot;HEAVY SNOW/HIGH&quot;               
+##  [71] &quot;HEAVY SNOW/HIGH WIND&quot;           &quot;HEAVY SNOW/HIGH WINDS&quot;         
+##  [73] &quot;HEAVY SNOW/HIGH WINDS &amp; FLOOD&quot;  &quot;HEAVY SNOW/HIGH WINDS/FREEZING&quot;
+##  [75] &quot;HEAVY SNOW/ICE&quot;                 &quot;HEAVY SNOW/ICE STORM&quot;          
+##  [77] &quot;HEAVY SNOW/SLEET&quot;               &quot;HEAVY SNOW/SQUALLS&quot;            
+##  [79] &quot;HEAVY SNOW/WIND&quot;                &quot;HEAVY SNOW/WINTER STORM&quot;       
+##  [81] &quot;HEAVY SNOWPACK&quot;                 &quot;HEAVY WET SNOW&quot;                
+##  [83] &quot;HIGH WIND AND HEAVY SNOW&quot;       &quot;HIGH WIND/BLIZZARD/FREEZING RA&quot;
+##  [85] &quot;HIGH WIND/HEAVY SNOW&quot;           &quot;HIGH WINDS/SNOW&quot;               
+##  [87] &quot;ICE&quot;                            &quot;ICE AND SNOW&quot;                  
+##  [89] &quot;ICE FLOES&quot;                      &quot;Ice Fog&quot;                       
+##  [91] &quot;ICE JAM&quot;                        &quot;Ice jam flood (minor&quot;          
+##  [93] &quot;ICE JAM FLOODING&quot;               &quot;ICE ON ROAD&quot;                   
+##  [95] &quot;ICE PELLETS&quot;                    &quot;ICE ROADS&quot;                     
+##  [97] &quot;ICE STORM&quot;                      &quot;ICE STORM AND SNOW&quot;            
+##  [99] &quot;ICE STORM/FLASH FLOOD&quot;          &quot;Ice/Snow&quot;                      
+## [101] &quot;ICE/SNOW&quot;                       &quot;ICE/STRONG WINDS&quot;              
+## [103] &quot;Icestorm/Blizzard&quot;              &quot;Icy Roads&quot;                     
+## [105] &quot;ICY ROADS&quot;                      &quot;LACK OF SNOW&quot;                  
+## [107] &quot;LAKE-EFFECT SNOW&quot;               &quot;Lake Effect Snow&quot;              
+## [109] &quot;LAKE EFFECT SNOW&quot;               &quot;Late-season Snowfall&quot;          
+## [111] &quot;LATE FREEZE&quot;                    &quot;LATE SEASON SNOW&quot;              
+## [113] &quot;Late Season Snowfall&quot;           &quot;LATE SNOW&quot;                     
+## [115] &quot;LIGHT FREEZING RAIN&quot;            &quot;Light snow&quot;                    
+## [117] &quot;Light Snow&quot;                     &quot;LIGHT SNOW&quot;                    
+## [119] &quot;LIGHT SNOW AND SLEET&quot;           &quot;Light Snow/Flurries&quot;           
+## [121] &quot;LIGHT SNOW/FREEZING PRECIP&quot;     &quot;Light Snowfall&quot;                
+## [123] &quot;MODERATE SNOW&quot;                  &quot;MODERATE SNOWFALL&quot;             
+## [125] &quot;Monthly Snowfall&quot;               &quot;MONTHLY SNOWFALL&quot;              
+## [127] &quot;Mountain Snows&quot;                 &quot;NEAR RECORD SNOW&quot;              
+## [129] &quot;PATCHY ICE&quot;                     &quot;PROLONG COLD/SNOW&quot;             
+## [131] &quot;RAIN/SNOW&quot;                      &quot;Record May Snow&quot;               
+## [133] &quot;RECORD SNOW&quot;                    &quot;RECORD SNOW/COLD&quot;              
+## [135] &quot;RECORD SNOWFALL&quot;                &quot;Record Winter Snow&quot;            
+## [137] &quot;Seasonal Snowfall&quot;              &quot;SLEET &amp; FREEZING RAIN&quot;         
+## [139] &quot;SLEET/FREEZING RAIN&quot;            &quot;SLEET/ICE STORM&quot;               
+## [141] &quot;SLEET/RAIN/SNOW&quot;                &quot;SLEET/SNOW&quot;                    
+## [143] &quot;Snow&quot;                           &quot;SNOW&quot;                          
+## [145] &quot;SNOW- HIGH WIND- WIND CHILL&quot;    &quot;Snow Accumulation&quot;             
+## [147] &quot;SNOW ACCUMULATION&quot;              &quot;SNOW ADVISORY&quot;                 
+## [149] &quot;SNOW AND COLD&quot;                  &quot;SNOW AND HEAVY SNOW&quot;           
+## [151] &quot;Snow and Ice&quot;                   &quot;SNOW AND ICE&quot;                  
+## [153] &quot;SNOW AND ICE STORM&quot;             &quot;Snow and sleet&quot;                
+## [155] &quot;SNOW AND SLEET&quot;                 &quot;SNOW AND WIND&quot;                 
+## [157] &quot;SNOW DROUGHT&quot;                   &quot;SNOW FREEZING RAIN&quot;            
+## [159] &quot;SNOW SHOWERS&quot;                   &quot;SNOW SLEET&quot;                    
+## [161] &quot;SNOW SQUALL&quot;                    &quot;Snow squalls&quot;                  
+## [163] &quot;Snow Squalls&quot;                   &quot;SNOW SQUALLS&quot;                  
+## [165] &quot;SNOW/ BITTER COLD&quot;              &quot;SNOW/ ICE&quot;                     
+## [167] &quot;SNOW/BLOWING SNOW&quot;              &quot;SNOW/COLD&quot;                     
+## [169] &quot;SNOW/FREEZING RAIN&quot;             &quot;SNOW/HEAVY SNOW&quot;               
+## [171] &quot;SNOW/HIGH WINDS&quot;                &quot;SNOW/ICE&quot;                      
+## [173] &quot;SNOW/ICE STORM&quot;                 &quot;SNOW/RAIN&quot;                     
+## [175] &quot;SNOW/RAIN/SLEET&quot;                &quot;SNOW/SLEET&quot;                    
+## [177] &quot;SNOW/SLEET/FREEZING RAIN&quot;       &quot;SNOW/SLEET/RAIN&quot;               
+## [179] &quot;SNOW\\COLD&quot;                     &quot;SNOWFALL RECORD&quot;               
+## [181] &quot;SNOWMELT FLOODING&quot;              &quot;SNOWSTORM&quot;                     
+## [183] &quot;THUNDERSNOW&quot;                    &quot;Thundersnow shower&quot;            
+## [185] &quot;UNUSUALLY LATE SNOW&quot;            &quot;WET SNOW&quot;                      
+## [187] &quot;WINTER MIX&quot;                     &quot;WINTER STORM&quot;                  
+## [189] &quot;WINTER STORM HIGH WINDS&quot;        &quot;WINTER STORM/HIGH WIND&quot;        
+## [191] &quot;WINTER STORM/HIGH WINDS&quot;        &quot;WINTER STORMS&quot;                 
+## [193] &quot;Winter Weather&quot;                 &quot;WINTER WEATHER&quot;                
+## [195] &quot;WINTER WEATHER MIX&quot;             &quot;WINTER WEATHER/MIX&quot;            
+## [197] &quot;WINTERY MIX&quot;                    &quot;Wintry mix&quot;                    
+## [199] &quot;Wintry Mix&quot;                     &quot;WINTRY MIX&quot;
 </code></pre>
 
 <p>Calculate the proportion of records that don&#39;t satisfy any one of the defined indicators.
 Calculate the number of unique event types among these records.
 List the ungrouped unique event types.</p>
 
-<pre><code class="r">where &lt;- expression(eventWind == FALSE &amp; eventHail == FALSE &amp; eventFlood == 
-    FALSE &amp; eventTornado == FALSE &amp; eventLightning == FALSE &amp; eventSnow == FALSE &amp; 
-    eventRain == FALSE)
+<pre><code class="r">where &lt;- expression(eventConvection == FALSE &amp; eventExtremeTemp == FALSE &amp; eventFlood == 
+    FALSE &amp; eventWinter == FALSE)
 ungrouped &lt;- D[eval(where), list(n = .N, prop = .N/nrow(D))]
 prop &lt;- D[eval(where), .N/nrow(D)]
 message(sprintf(&quot;Number (%%) of records that don&#39;t satisfy any one of the defined indicators: %.0d (%.2f%%)&quot;, 
     ungrouped$n, ungrouped$prop * 100))
 </code></pre>
 
-<pre><code>## Number (%) of records that don&#39;t satisfy any one of the defined indicators: 35761 (3.96%)
+<pre><code>## Number (%) of records that don&#39;t satisfy any one of the defined
+## indicators: 25040 (2.78%)
 </code></pre>
 
 <pre><code class="r">uniqueEvtype &lt;- unique(D[eval(where), evtype])
@@ -848,7 +904,8 @@ message(sprintf(&quot;Number of unique event types that don&#39;t satisfy any on
     length(uniqueEvtype)))
 </code></pre>
 
-<pre><code>## Number of unique event types that don&#39;t satisfy any one of the defined indicators: 383
+<pre><code>## Number of unique event types that don&#39;t satisfy any one of the defined
+## indicators: 306
 </code></pre>
 
 <pre><code class="r">uniqueEvtype[order(uniqueEvtype)]
@@ -861,198 +918,158 @@ message(sprintf(&quot;Number of unique event types that don&#39;t satisfy any on
 ##   [9] &quot;ASTRONOMICAL LOW TIDE&quot;      &quot;AVALANCE&quot;                  
 ##  [11] &quot;AVALANCHE&quot;                  &quot;BEACH EROSIN&quot;              
 ##  [13] &quot;Beach Erosion&quot;              &quot;BEACH EROSION&quot;             
-##  [15] &quot;BELOW NORMAL PRECIPITATION&quot; &quot;BLIZZARD&quot;                  
-##  [17] &quot;Blizzard Summary&quot;           &quot;BLIZZARD WEATHER&quot;          
-##  [19] &quot;BLOW-OUT TIDE&quot;              &quot;BLOW-OUT TIDES&quot;            
-##  [21] &quot;BLOWING DUST&quot;               &quot;BRUSH FIRE&quot;                
-##  [23] &quot;BRUSH FIRES&quot;                &quot;COASTAL EROSION&quot;           
-##  [25] &quot;Coastal Storm&quot;              &quot;COASTAL STORM&quot;             
-##  [27] &quot;COASTAL SURGE&quot;              &quot;COASTALSTORM&quot;              
-##  [29] &quot;Cold&quot;                       &quot;COLD&quot;                      
-##  [31] &quot;COLD AIR FUNNEL&quot;            &quot;COLD AIR FUNNELS&quot;          
-##  [33] &quot;Cold and Frost&quot;             &quot;COLD AND FROST&quot;            
-##  [35] &quot;COLD AND WET CONDITIONS&quot;    &quot;Cold Temperature&quot;          
-##  [37] &quot;COLD TEMPERATURES&quot;          &quot;COLD WAVE&quot;                 
-##  [39] &quot;COLD WEATHER&quot;               &quot;COOL AND WET&quot;              
-##  [41] &quot;COOL SPELL&quot;                 &quot;DAM BREAK&quot;                 
-##  [43] &quot;DAM FAILURE&quot;                &quot;DENSE FOG&quot;                 
-##  [45] &quot;DENSE SMOKE&quot;                &quot;DOWNBURST&quot;                 
-##  [47] &quot;DRIEST MONTH&quot;               &quot;DROUGHT&quot;                   
-##  [49] &quot;DROUGHT/EXCESSIVE HEAT&quot;     &quot;DROWNING&quot;                  
-##  [51] &quot;DRY&quot;                        &quot;DRY CONDITIONS&quot;            
-##  [53] &quot;DRY HOT WEATHER&quot;            &quot;DRY MICROBURST&quot;            
-##  [55] &quot;DRY MICROBURST 50&quot;          &quot;DRY MICROBURST 53&quot;         
-##  [57] &quot;DRY MICROBURST 58&quot;          &quot;DRY MICROBURST 61&quot;         
-##  [59] &quot;DRY MICROBURST 84&quot;          &quot;DRY PATTERN&quot;               
-##  [61] &quot;DRY SPELL&quot;                  &quot;DRY WEATHER&quot;               
-##  [63] &quot;DRYNESS&quot;                    &quot;DUST DEVEL&quot;                
-##  [65] &quot;Dust Devil&quot;                 &quot;DUST DEVIL&quot;                
-##  [67] &quot;DUST DEVIL WATERSPOUT&quot;      &quot;DUST STORM&quot;                
-##  [69] &quot;DUSTSTORM&quot;                  &quot;Early Frost&quot;               
-##  [71] &quot;EARLY FROST&quot;                &quot;EXCESSIVE&quot;                 
-##  [73] &quot;Excessive Cold&quot;             &quot;EXCESSIVE HEAT&quot;            
-##  [75] &quot;EXCESSIVE HEAT/DROUGHT&quot;     &quot;EXCESSIVE PRECIPITATION&quot;   
-##  [77] &quot;EXCESSIVE WETNESS&quot;          &quot;EXCESSIVELY DRY&quot;           
-##  [79] &quot;Extended Cold&quot;              &quot;Extreme Cold&quot;              
-##  [81] &quot;EXTREME COLD&quot;               &quot;EXTREME HEAT&quot;              
-##  [83] &quot;EXTREME/RECORD COLD&quot;        &quot;EXTREMELY WET&quot;             
-##  [85] &quot;FIRST FROST&quot;                &quot;FLASH FLOOODING&quot;           
-##  [87] &quot;FOG&quot;                        &quot;FOG AND COLD TEMPERATURES&quot; 
-##  [89] &quot;FOREST FIRES&quot;               &quot;Frost&quot;                     
-##  [91] &quot;FROST&quot;                      &quot;FUNNEL&quot;                    
-##  [93] &quot;Funnel Cloud&quot;               &quot;FUNNEL CLOUD&quot;              
-##  [95] &quot;FUNNEL CLOUD.&quot;              &quot;FUNNEL CLOUDS&quot;             
-##  [97] &quot;FUNNELS&quot;                    &quot;Glaze&quot;                     
-##  [99] &quot;GLAZE&quot;                      &quot;GRASS FIRES&quot;               
-## [101] &quot;GROUND BLIZZARD&quot;            &quot;HAZARDOUS SURF&quot;            
-## [103] &quot;HEAT&quot;                       &quot;HEAT DROUGHT&quot;              
-## [105] &quot;Heat Wave&quot;                  &quot;HEAT WAVE&quot;                 
-## [107] &quot;HEAT WAVE DROUGHT&quot;          &quot;HEAT WAVES&quot;                
-## [109] &quot;HEAT/DROUGHT&quot;               &quot;Heatburst&quot;                 
-## [111] &quot;HEAVY MIX&quot;                  &quot;HEAVY PRECIPATATION&quot;       
-## [113] &quot;Heavy Precipitation&quot;        &quot;HEAVY PRECIPITATION&quot;       
-## [115] &quot;HEAVY SEAS&quot;                 &quot;HEAVY SHOWER&quot;              
-## [117] &quot;HEAVY SHOWERS&quot;              &quot;Heavy Surf&quot;                
-## [119] &quot;HEAVY SURF&quot;                 &quot;HEAVY SURF/HIGH SURF&quot;      
-## [121] &quot;HEAVY SWELLS&quot;               &quot;HIGH&quot;                      
-## [123] &quot;HIGH  SWELLS&quot;               &quot;HIGH SEAS&quot;                 
-## [125] &quot;High Surf&quot;                  &quot;HIGH SURF&quot;                 
-## [127] &quot;HIGH SURF ADVISORIES&quot;       &quot;HIGH SURF ADVISORY&quot;        
-## [129] &quot;HIGH SWELLS&quot;                &quot;HIGH TEMPERATURE RECORD&quot;   
-## [131] &quot;HIGH TIDES&quot;                 &quot;HIGH WATER&quot;                
-## [133] &quot;HIGH WAVES&quot;                 &quot;Hot and Dry&quot;               
-## [135] &quot;HOT PATTERN&quot;                &quot;HOT SPELL&quot;                 
-## [137] &quot;HOT WEATHER&quot;                &quot;HOT/DRY PATTERN&quot;           
-## [139] &quot;HURRICANE&quot;                  &quot;HURRICANE-GENERATED SWELLS&quot;
-## [141] &quot;Hurricane Edouard&quot;          &quot;HURRICANE EMILY&quot;           
-## [143] &quot;HURRICANE ERIN&quot;             &quot;HURRICANE FELIX&quot;           
-## [145] &quot;HURRICANE GORDON&quot;           &quot;HURRICANE OPAL&quot;            
-## [147] &quot;HURRICANE/TYPHOON&quot;          &quot;HYPERTHERMIA/EXPOSURE&quot;     
-## [149] &quot;HYPOTHERMIA&quot;                &quot;Hypothermia/Exposure&quot;      
-## [151] &quot;HYPOTHERMIA/EXPOSURE&quot;       &quot;LANDSLIDE&quot;                 
-## [153] &quot;LANDSLIDES&quot;                 &quot;Landslump&quot;                 
-## [155] &quot;LANDSLUMP&quot;                  &quot;LANDSPOUT&quot;                 
-## [157] &quot;LARGE WALL CLOUD&quot;           &quot;LOW TEMPERATURE&quot;           
-## [159] &quot;LOW TEMPERATURE RECORD&quot;     &quot;Marine Accident&quot;           
-## [161] &quot;MARINE MISHAP&quot;              &quot;Metro Storm, May 26&quot;       
-## [163] &quot;Microburst&quot;                 &quot;MICROBURST&quot;                
-## [165] &quot;Mild and Dry Pattern&quot;       &quot;MILD PATTERN&quot;              
-## [167] &quot;MILD/DRY PATTERN&quot;           &quot;MIXED PRECIP&quot;              
-## [169] &quot;Mixed Precipitation&quot;        &quot;MIXED PRECIPITATION&quot;       
-## [171] &quot;MONTHLY PRECIPITATION&quot;      &quot;MONTHLY TEMPERATURE&quot;       
-## [173] &quot;MUD SLIDE&quot;                  &quot;MUD SLIDES&quot;                
-## [175] &quot;MUD/ROCK SLIDE&quot;             &quot;Mudslide&quot;                  
-## [177] &quot;MUDSLIDE&quot;                   &quot;MUDSLIDE/LANDSLIDE&quot;        
-## [179] &quot;Mudslides&quot;                  &quot;MUDSLIDES&quot;                 
-## [181] &quot;No Severe Weather&quot;          &quot;NONE&quot;                      
-## [183] &quot;NORMAL PRECIPITATION&quot;       &quot;NORTHERN LIGHTS&quot;           
-## [185] &quot;Other&quot;                      &quot;OTHER&quot;                     
-## [187] &quot;PATCHY DENSE FOG&quot;           &quot;Prolong Cold&quot;              
-## [189] &quot;PROLONG COLD&quot;               &quot;PROLONG WARMTH&quot;            
-## [191] &quot;RAPIDLY RISING WATER&quot;       &quot;RECORD  COLD&quot;              
-## [193] &quot;Record Cold&quot;                &quot;RECORD COLD&quot;               
-## [195] &quot;RECORD COLD/FROST&quot;          &quot;RECORD COOL&quot;               
-## [197] &quot;Record dry month&quot;           &quot;RECORD DRYNESS&quot;            
-## [199] &quot;Record Heat&quot;                &quot;RECORD HEAT&quot;               
-## [201] &quot;RECORD HEAT WAVE&quot;           &quot;Record High&quot;               
-## [203] &quot;RECORD HIGH&quot;                &quot;RECORD HIGH TEMPERATURE&quot;   
-## [205] &quot;RECORD HIGH TEMPERATURES&quot;   &quot;RECORD LOW&quot;                
-## [207] &quot;RECORD PRECIPITATION&quot;       &quot;Record temperature&quot;        
-## [209] &quot;RECORD TEMPERATURE&quot;         &quot;Record Temperatures&quot;       
-## [211] &quot;RECORD TEMPERATURES&quot;        &quot;RECORD WARM&quot;               
-## [213] &quot;RECORD WARM TEMPS.&quot;         &quot;Record Warmth&quot;             
-## [215] &quot;RECORD WARMTH&quot;              &quot;RECORD/EXCESSIVE HEAT&quot;     
-## [217] &quot;RED FLAG CRITERIA&quot;          &quot;RED FLAG FIRE WX&quot;          
-## [219] &quot;REMNANTS OF FLOYD&quot;          &quot;RIP CURRENT&quot;               
-## [221] &quot;RIP CURRENTS&quot;               &quot;RIP CURRENTS HEAVY SURF&quot;   
-## [223] &quot;RIP CURRENTS/HEAVY SURF&quot;    &quot;ROCK SLIDE&quot;                
-## [225] &quot;ROGUE WAVE&quot;                 &quot;ROTATING WALL CLOUD&quot;       
-## [227] &quot;ROUGH SEAS&quot;                 &quot;ROUGH SURF&quot;                
-## [229] &quot;Saharan Dust&quot;               &quot;SAHARAN DUST&quot;              
-## [231] &quot;SEICHE&quot;                     &quot;SEVERE COLD&quot;               
-## [233] &quot;SEVERE THUNDERSTORM&quot;        &quot;SEVERE THUNDERSTORMS&quot;      
-## [235] &quot;SEVERE TURBULENCE&quot;          &quot;SLEET&quot;                     
-## [237] &quot;SLEET STORM&quot;                &quot;SMALL STREAM&quot;              
-## [239] &quot;SMALL STREAM AND&quot;           &quot;Sml Stream Fld&quot;            
-## [241] &quot;SMOKE&quot;                      &quot;SOUTHEAST&quot;                 
-## [243] &quot;STORM SURGE&quot;                &quot;STORM SURGE/TIDE&quot;          
-## [245] &quot;Summary August 10&quot;          &quot;Summary August 11&quot;         
-## [247] &quot;Summary August 17&quot;          &quot;Summary August 2-3&quot;        
-## [249] &quot;Summary August 21&quot;          &quot;Summary August 28&quot;         
-## [251] &quot;Summary August 4&quot;           &quot;Summary August 7&quot;          
-## [253] &quot;Summary August 9&quot;           &quot;Summary Jan 17&quot;            
-## [255] &quot;Summary July 23-24&quot;         &quot;Summary June 18-19&quot;        
-## [257] &quot;Summary June 5-6&quot;           &quot;Summary June 6&quot;            
-## [259] &quot;Summary of April 12&quot;        &quot;Summary of April 13&quot;       
-## [261] &quot;Summary of April 21&quot;        &quot;Summary of April 27&quot;       
-## [263] &quot;Summary of April 3rd&quot;       &quot;Summary of August 1&quot;       
-## [265] &quot;Summary of July 11&quot;         &quot;Summary of July 2&quot;         
-## [267] &quot;Summary of July 22&quot;         &quot;Summary of July 26&quot;        
-## [269] &quot;Summary of July 29&quot;         &quot;Summary of July 3&quot;         
-## [271] &quot;Summary of June 10&quot;         &quot;Summary of June 11&quot;        
-## [273] &quot;Summary of June 12&quot;         &quot;Summary of June 13&quot;        
-## [275] &quot;Summary of June 15&quot;         &quot;Summary of June 16&quot;        
-## [277] &quot;Summary of June 18&quot;         &quot;Summary of June 23&quot;        
-## [279] &quot;Summary of June 24&quot;         &quot;Summary of June 3&quot;         
-## [281] &quot;Summary of June 30&quot;         &quot;Summary of June 4&quot;         
-## [283] &quot;Summary of June 6&quot;          &quot;Summary of March 14&quot;       
-## [285] &quot;Summary of March 23&quot;        &quot;Summary of March 24&quot;       
-## [287] &quot;SUMMARY OF MARCH 24-25&quot;     &quot;SUMMARY OF MARCH 27&quot;       
-## [289] &quot;SUMMARY OF MARCH 29&quot;        &quot;Summary of May 10&quot;         
-## [291] &quot;Summary of May 13&quot;          &quot;Summary of May 14&quot;         
-## [293] &quot;Summary of May 22&quot;          &quot;Summary of May 22 am&quot;      
-## [295] &quot;Summary of May 22 pm&quot;       &quot;Summary of May 26 am&quot;      
-## [297] &quot;Summary of May 26 pm&quot;       &quot;Summary of May 31 am&quot;      
-## [299] &quot;Summary of May 31 pm&quot;       &quot;Summary of May 9-10&quot;       
-## [301] &quot;Summary Sept. 25-26&quot;        &quot;Summary September 20&quot;      
-## [303] &quot;Summary September 23&quot;       &quot;Summary September 3&quot;       
-## [305] &quot;Summary September 4&quot;        &quot;Summary: Nov. 16&quot;          
-## [307] &quot;Summary: Nov. 6-7&quot;          &quot;Summary: Oct. 20-21&quot;       
-## [309] &quot;Summary: October 31&quot;        &quot;Summary: Sept. 18&quot;         
-## [311] &quot;Temperature record&quot;         &quot;THUNDERSTORM&quot;              
-## [313] &quot;THUNDERSTORM DAMAGE&quot;        &quot;THUNDERSTORM DAMAGE TO&quot;    
-## [315] &quot;THUNDERSTORM W INDS&quot;        &quot;THUNDERSTORM WINS&quot;         
-## [317] &quot;THUNDERSTORMS&quot;              &quot;THUNDERSTORMW&quot;             
-## [319] &quot;THUNDERSTORMW 50&quot;           &quot;TROPICAL DEPRESSION&quot;       
-## [321] &quot;TROPICAL STORM&quot;             &quot;TROPICAL STORM ALBERTO&quot;    
-## [323] &quot;TROPICAL STORM DEAN&quot;        &quot;TROPICAL STORM GORDON&quot;     
-## [325] &quot;TROPICAL STORM JERRY&quot;       &quot;TSTM&quot;                      
-## [327] &quot;TSTMW&quot;                      &quot;TSUNAMI&quot;                   
-## [329] &quot;TYPHOON&quot;                    &quot;Unseasonable Cold&quot;         
-## [331] &quot;UNSEASONABLY COLD&quot;          &quot;UNSEASONABLY COOL&quot;         
-## [333] &quot;UNSEASONABLY COOL &amp; WET&quot;    &quot;UNSEASONABLY DRY&quot;          
-## [335] &quot;UNSEASONABLY HOT&quot;           &quot;UNSEASONABLY WARM&quot;         
-## [337] &quot;UNSEASONABLY WARM &amp; WET&quot;    &quot;UNSEASONABLY WARM AND DRY&quot; 
-## [339] &quot;UNSEASONABLY WARM YEAR&quot;     &quot;UNSEASONABLY WARM/WET&quot;     
-## [341] &quot;UNSEASONABLY WET&quot;           &quot;UNSEASONAL LOW TEMP&quot;       
-## [343] &quot;UNUSUAL WARMTH&quot;             &quot;UNUSUAL/RECORD WARMTH&quot;     
-## [345] &quot;UNUSUALLY COLD&quot;             &quot;UNUSUALLY WARM&quot;            
-## [347] &quot;URBAN AND SMALL&quot;            &quot;URBAN AND SMALL STREAM&quot;    
-## [349] &quot;URBAN SMALL&quot;                &quot;URBAN/SMALL&quot;               
-## [351] &quot;URBAN/SMALL STREAM&quot;         &quot;URBAN/SMALL STRM FLDG&quot;     
-## [353] &quot;URBAN/SML STREAM FLD&quot;       &quot;URBAN/SML STREAM FLDG&quot;     
-## [355] &quot;VERY DRY&quot;                   &quot;VERY WARM&quot;                 
-## [357] &quot;VOG&quot;                        &quot;Volcanic Ash&quot;              
-## [359] &quot;VOLCANIC ASH&quot;               &quot;Volcanic Ash Plume&quot;        
-## [361] &quot;VOLCANIC ASHFALL&quot;           &quot;VOLCANIC ERUPTION&quot;         
-## [363] &quot;WALL CLOUD&quot;                 &quot;WALL CLOUD/FUNNEL CLOUD&quot;   
-## [365] &quot;WARM DRY CONDITIONS&quot;        &quot;WARM WEATHER&quot;              
-## [367] &quot;WATER SPOUT&quot;                &quot;WATERSPOUT&quot;                
-## [369] &quot;WATERSPOUT-&quot;                &quot;WATERSPOUT FUNNEL CLOUD&quot;   
-## [371] &quot;WATERSPOUT/&quot;                &quot;WATERSPOUTS&quot;               
-## [373] &quot;WAYTERSPOUT&quot;                &quot;wet micoburst&quot;             
-## [375] &quot;WET MICROBURST&quot;             &quot;Wet Month&quot;                 
-## [377] &quot;WET WEATHER&quot;                &quot;Wet Year&quot;                  
-## [379] &quot;WILD FIRES&quot;                 &quot;WILD/FOREST FIRE&quot;          
-## [381] &quot;WILD/FOREST FIRES&quot;          &quot;WILDFIRE&quot;                  
-## [383] &quot;WILDFIRES&quot;
+##  [15] &quot;BLIZZARD&quot;                   &quot;Blizzard Summary&quot;          
+##  [17] &quot;BLIZZARD WEATHER&quot;           &quot;BLOW-OUT TIDE&quot;             
+##  [19] &quot;BLOW-OUT TIDES&quot;             &quot;BLOWING DUST&quot;              
+##  [21] &quot;BRUSH FIRE&quot;                 &quot;BRUSH FIRES&quot;               
+##  [23] &quot;COASTAL EROSION&quot;            &quot;Coastal Storm&quot;             
+##  [25] &quot;COASTAL STORM&quot;              &quot;COASTAL SURGE&quot;             
+##  [27] &quot;COASTALFLOOD&quot;               &quot;COASTALSTORM&quot;              
+##  [29] &quot;COOL AND WET&quot;               &quot;COOL SPELL&quot;                
+##  [31] &quot;DAM BREAK&quot;                  &quot;DAM FAILURE&quot;               
+##  [33] &quot;DENSE FOG&quot;                  &quot;DENSE SMOKE&quot;               
+##  [35] &quot;DOWNBURST&quot;                  &quot;DRIEST MONTH&quot;              
+##  [37] &quot;DROUGHT&quot;                    &quot;DROWNING&quot;                  
+##  [39] &quot;DRY&quot;                        &quot;DRY CONDITIONS&quot;            
+##  [41] &quot;DRY HOT WEATHER&quot;            &quot;DRY MICROBURST&quot;            
+##  [43] &quot;DRY MICROBURST 50&quot;          &quot;DRY MICROBURST 53&quot;         
+##  [45] &quot;DRY MICROBURST 58&quot;          &quot;DRY MICROBURST 61&quot;         
+##  [47] &quot;DRY MICROBURST 84&quot;          &quot;DRY PATTERN&quot;               
+##  [49] &quot;DRY SPELL&quot;                  &quot;DRY WEATHER&quot;               
+##  [51] &quot;DRYNESS&quot;                    &quot;DUST DEVEL&quot;                
+##  [53] &quot;Dust Devil&quot;                 &quot;DUST DEVIL&quot;                
+##  [55] &quot;DUST DEVIL WATERSPOUT&quot;      &quot;DUST STORM&quot;                
+##  [57] &quot;DUSTSTORM&quot;                  &quot;Early Frost&quot;               
+##  [59] &quot;EARLY FROST&quot;                &quot;EXCESSIVE&quot;                 
+##  [61] &quot;EXCESSIVE WETNESS&quot;          &quot;EXCESSIVELY DRY&quot;           
+##  [63] &quot;EXTREMELY WET&quot;              &quot;FIRST FROST&quot;               
+##  [65] &quot;FOG&quot;                        &quot;FOREST FIRES&quot;              
+##  [67] &quot;Frost&quot;                      &quot;FROST&quot;                     
+##  [69] &quot;Glaze&quot;                      &quot;GLAZE&quot;                     
+##  [71] &quot;GRASS FIRES&quot;                &quot;GROUND BLIZZARD&quot;           
+##  [73] &quot;HAZARDOUS SURF&quot;             &quot;HEAVY MIX&quot;                 
+##  [75] &quot;HEAVY SEAS&quot;                 &quot;Heavy Surf&quot;                
+##  [77] &quot;HEAVY SURF&quot;                 &quot;HEAVY SURF/HIGH SURF&quot;      
+##  [79] &quot;HEAVY SWELLS&quot;               &quot;HIGH&quot;                      
+##  [81] &quot;HIGH  SWELLS&quot;               &quot;HIGH SEAS&quot;                 
+##  [83] &quot;High Surf&quot;                  &quot;HIGH SURF&quot;                 
+##  [85] &quot;HIGH SURF ADVISORIES&quot;       &quot;HIGH SURF ADVISORY&quot;        
+##  [87] &quot;HIGH SWELLS&quot;                &quot;HIGH TEMPERATURE RECORD&quot;   
+##  [89] &quot;HIGH TIDES&quot;                 &quot;HIGH WATER&quot;                
+##  [91] &quot;HIGH WAVES&quot;                 &quot;Hot and Dry&quot;               
+##  [93] &quot;HOT PATTERN&quot;                &quot;HOT SPELL&quot;                 
+##  [95] &quot;HOT WEATHER&quot;                &quot;HOT/DRY PATTERN&quot;           
+##  [97] &quot;HURRICANE&quot;                  &quot;HURRICANE-GENERATED SWELLS&quot;
+##  [99] &quot;Hurricane Edouard&quot;          &quot;HURRICANE EMILY&quot;           
+## [101] &quot;HURRICANE ERIN&quot;             &quot;HURRICANE FELIX&quot;           
+## [103] &quot;HURRICANE GORDON&quot;           &quot;HURRICANE OPAL&quot;            
+## [105] &quot;HURRICANE/TYPHOON&quot;          &quot;HYPERTHERMIA/EXPOSURE&quot;     
+## [107] &quot;HYPOTHERMIA&quot;                &quot;Hypothermia/Exposure&quot;      
+## [109] &quot;HYPOTHERMIA/EXPOSURE&quot;       &quot;LANDSLIDE&quot;                 
+## [111] &quot;LANDSLIDES&quot;                 &quot;Landslump&quot;                 
+## [113] &quot;LANDSLUMP&quot;                  &quot;LANDSPOUT&quot;                 
+## [115] &quot;LARGE WALL CLOUD&quot;           &quot;LOW TEMPERATURE&quot;           
+## [117] &quot;LOW TEMPERATURE RECORD&quot;     &quot;Marine Accident&quot;           
+## [119] &quot;MARINE MISHAP&quot;              &quot;Metro Storm, May 26&quot;       
+## [121] &quot;Microburst&quot;                 &quot;MICROBURST&quot;                
+## [123] &quot;Mild and Dry Pattern&quot;       &quot;MILD PATTERN&quot;              
+## [125] &quot;MILD/DRY PATTERN&quot;           &quot;MONTHLY TEMPERATURE&quot;       
+## [127] &quot;MUD SLIDE&quot;                  &quot;MUD SLIDES&quot;                
+## [129] &quot;MUD/ROCK SLIDE&quot;             &quot;Mudslide&quot;                  
+## [131] &quot;MUDSLIDE&quot;                   &quot;MUDSLIDE/LANDSLIDE&quot;        
+## [133] &quot;Mudslides&quot;                  &quot;MUDSLIDES&quot;                 
+## [135] &quot;No Severe Weather&quot;          &quot;NONE&quot;                      
+## [137] &quot;NORTHERN LIGHTS&quot;            &quot;Other&quot;                     
+## [139] &quot;OTHER&quot;                      &quot;PATCHY DENSE FOG&quot;          
+## [141] &quot;PROLONG WARMTH&quot;             &quot;RAPIDLY RISING WATER&quot;      
+## [143] &quot;RECORD COOL&quot;                &quot;Record dry month&quot;          
+## [145] &quot;RECORD DRYNESS&quot;             &quot;Record High&quot;               
+## [147] &quot;RECORD HIGH&quot;                &quot;RECORD HIGH TEMPERATURE&quot;   
+## [149] &quot;RECORD HIGH TEMPERATURES&quot;   &quot;RECORD LOW&quot;                
+## [151] &quot;Record temperature&quot;         &quot;RECORD TEMPERATURE&quot;        
+## [153] &quot;Record Temperatures&quot;        &quot;RECORD TEMPERATURES&quot;       
+## [155] &quot;RECORD WARM&quot;                &quot;RECORD WARM TEMPS.&quot;        
+## [157] &quot;Record Warmth&quot;              &quot;RECORD WARMTH&quot;             
+## [159] &quot;RED FLAG CRITERIA&quot;          &quot;RED FLAG FIRE WX&quot;          
+## [161] &quot;RIP CURRENT&quot;                &quot;RIP CURRENTS&quot;              
+## [163] &quot;RIP CURRENTS HEAVY SURF&quot;    &quot;RIP CURRENTS/HEAVY SURF&quot;   
+## [165] &quot;ROCK SLIDE&quot;                 &quot;ROGUE WAVE&quot;                
+## [167] &quot;ROTATING WALL CLOUD&quot;        &quot;ROUGH SEAS&quot;                
+## [169] &quot;ROUGH SURF&quot;                 &quot;Saharan Dust&quot;              
+## [171] &quot;SAHARAN DUST&quot;               &quot;SEICHE&quot;                    
+## [173] &quot;SEVERE TURBULENCE&quot;          &quot;SLEET&quot;                     
+## [175] &quot;SLEET STORM&quot;                &quot;SMALL STREAM&quot;              
+## [177] &quot;SMALL STREAM AND&quot;           &quot;Sml Stream Fld&quot;            
+## [179] &quot;SMOKE&quot;                      &quot;SOUTHEAST&quot;                 
+## [181] &quot;STORM SURGE&quot;                &quot;STORM SURGE/TIDE&quot;          
+## [183] &quot;Summary August 10&quot;          &quot;Summary August 11&quot;         
+## [185] &quot;Summary August 17&quot;          &quot;Summary August 2-3&quot;        
+## [187] &quot;Summary August 21&quot;          &quot;Summary August 28&quot;         
+## [189] &quot;Summary August 4&quot;           &quot;Summary August 7&quot;          
+## [191] &quot;Summary August 9&quot;           &quot;Summary Jan 17&quot;            
+## [193] &quot;Summary July 23-24&quot;         &quot;Summary June 18-19&quot;        
+## [195] &quot;Summary June 5-6&quot;           &quot;Summary June 6&quot;            
+## [197] &quot;Summary of April 12&quot;        &quot;Summary of April 13&quot;       
+## [199] &quot;Summary of April 21&quot;        &quot;Summary of April 27&quot;       
+## [201] &quot;Summary of April 3rd&quot;       &quot;Summary of August 1&quot;       
+## [203] &quot;Summary of July 11&quot;         &quot;Summary of July 2&quot;         
+## [205] &quot;Summary of July 22&quot;         &quot;Summary of July 26&quot;        
+## [207] &quot;Summary of July 29&quot;         &quot;Summary of July 3&quot;         
+## [209] &quot;Summary of June 10&quot;         &quot;Summary of June 11&quot;        
+## [211] &quot;Summary of June 12&quot;         &quot;Summary of June 13&quot;        
+## [213] &quot;Summary of June 15&quot;         &quot;Summary of June 16&quot;        
+## [215] &quot;Summary of June 18&quot;         &quot;Summary of June 23&quot;        
+## [217] &quot;Summary of June 24&quot;         &quot;Summary of June 3&quot;         
+## [219] &quot;Summary of June 30&quot;         &quot;Summary of June 4&quot;         
+## [221] &quot;Summary of June 6&quot;          &quot;Summary of March 14&quot;       
+## [223] &quot;Summary of March 23&quot;        &quot;Summary of March 24&quot;       
+## [225] &quot;SUMMARY OF MARCH 24-25&quot;     &quot;SUMMARY OF MARCH 27&quot;       
+## [227] &quot;SUMMARY OF MARCH 29&quot;        &quot;Summary of May 10&quot;         
+## [229] &quot;Summary of May 13&quot;          &quot;Summary of May 14&quot;         
+## [231] &quot;Summary of May 22&quot;          &quot;Summary of May 22 am&quot;      
+## [233] &quot;Summary of May 22 pm&quot;       &quot;Summary of May 26 am&quot;      
+## [235] &quot;Summary of May 26 pm&quot;       &quot;Summary of May 31 am&quot;      
+## [237] &quot;Summary of May 31 pm&quot;       &quot;Summary of May 9-10&quot;       
+## [239] &quot;Summary Sept. 25-26&quot;        &quot;Summary September 20&quot;      
+## [241] &quot;Summary September 23&quot;       &quot;Summary September 3&quot;       
+## [243] &quot;Summary September 4&quot;        &quot;Summary: Nov. 16&quot;          
+## [245] &quot;Summary: Nov. 6-7&quot;          &quot;Summary: Oct. 20-21&quot;       
+## [247] &quot;Summary: October 31&quot;        &quot;Summary: Sept. 18&quot;         
+## [249] &quot;Temperature record&quot;         &quot;TROPICAL DEPRESSION&quot;       
+## [251] &quot;TROPICAL STORM&quot;             &quot;TROPICAL STORM ALBERTO&quot;    
+## [253] &quot;TROPICAL STORM DEAN&quot;        &quot;TROPICAL STORM GORDON&quot;     
+## [255] &quot;TROPICAL STORM JERRY&quot;       &quot;TSUNAMI&quot;                   
+## [257] &quot;TYPHOON&quot;                    &quot;UNSEASONABLY COOL&quot;         
+## [259] &quot;UNSEASONABLY COOL &amp; WET&quot;    &quot;UNSEASONABLY DRY&quot;          
+## [261] &quot;UNSEASONABLY HOT&quot;           &quot;UNSEASONABLY WARM&quot;         
+## [263] &quot;UNSEASONABLY WARM &amp; WET&quot;    &quot;UNSEASONABLY WARM AND DRY&quot; 
+## [265] &quot;UNSEASONABLY WARM YEAR&quot;     &quot;UNSEASONABLY WARM/WET&quot;     
+## [267] &quot;UNSEASONABLY WET&quot;           &quot;UNSEASONAL LOW TEMP&quot;       
+## [269] &quot;UNUSUAL WARMTH&quot;             &quot;UNUSUAL/RECORD WARMTH&quot;     
+## [271] &quot;UNUSUALLY WARM&quot;             &quot;URBAN AND SMALL&quot;           
+## [273] &quot;URBAN AND SMALL STREAM&quot;     &quot;URBAN SMALL&quot;               
+## [275] &quot;URBAN/SMALL&quot;                &quot;URBAN/SMALL STREAM&quot;        
+## [277] &quot;URBAN/SMALL STRM FLDG&quot;      &quot;URBAN/SML STREAM FLD&quot;      
+## [279] &quot;URBAN/SML STREAM FLDG&quot;      &quot;VERY DRY&quot;                  
+## [281] &quot;VERY WARM&quot;                  &quot;VOG&quot;                       
+## [283] &quot;Volcanic Ash&quot;               &quot;VOLCANIC ASH&quot;              
+## [285] &quot;Volcanic Ash Plume&quot;         &quot;VOLCANIC ASHFALL&quot;          
+## [287] &quot;VOLCANIC ERUPTION&quot;          &quot;WALL CLOUD&quot;                
+## [289] &quot;WARM DRY CONDITIONS&quot;        &quot;WARM WEATHER&quot;              
+## [291] &quot;WATER SPOUT&quot;                &quot;WATERSPOUT&quot;                
+## [293] &quot;WATERSPOUT-&quot;                &quot;WATERSPOUT/&quot;               
+## [295] &quot;WATERSPOUTS&quot;                &quot;WAYTERSPOUT&quot;               
+## [297] &quot;wet micoburst&quot;              &quot;WET MICROBURST&quot;            
+## [299] &quot;Wet Month&quot;                  &quot;WET WEATHER&quot;               
+## [301] &quot;Wet Year&quot;                   &quot;WILD FIRES&quot;                
+## [303] &quot;WILD/FOREST FIRE&quot;           &quot;WILD/FOREST FIRES&quot;         
+## [305] &quot;WILDFIRE&quot;                   &quot;WILDFIRES&quot;
 </code></pre>
 
 <p>Create an <strong>Other</strong> indicator for ungrouped event types.</p>
 
-<pre><code class="r">D &lt;- D[, `:=`(eventOther, eventWind == FALSE &amp; eventHail == FALSE &amp; eventFlood == 
-    FALSE &amp; eventTornado == FALSE &amp; eventLightning == FALSE &amp; eventSnow == FALSE &amp; 
-    eventRain == FALSE)]
+<pre><code class="r">D &lt;- D[, `:=`(eventOther, eventConvection == FALSE &amp; eventExtremeTemp == FALSE &amp; 
+    eventFlood == FALSE &amp; eventWinter == FALSE)]
 </code></pre>
 
 <p>According to the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf">FAQ</a>, </p>
@@ -1064,21 +1081,72 @@ Tornado and Flood are events)</p>
 
 <p>A crosstabulation for these events is below.</p>
 
-<pre><code class="r">groupby &lt;- expression(list(eventWind, eventHail, eventTornado, eventFlood))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, 
-    decreasing = TRUE)]
+<pre><code class="r">groupby &lt;- expression(list(eventConvection, eventExtremeTemp, eventFlood, eventWinter, 
+    eventOther))
+D[, .N, eval(groupby)][order(eventConvection, eventExtremeTemp, eventFlood, 
+    eventWinter, eventOther, decreasing = TRUE)]
 </code></pre>
 
-<pre><code>##    eventWind eventHail eventTornado eventFlood      N
-## 1:      TRUE      TRUE         TRUE      FALSE      1
-## 2:      TRUE      TRUE        FALSE      FALSE   1123
-## 3:      TRUE     FALSE        FALSE       TRUE     18
-## 4:      TRUE     FALSE        FALSE      FALSE 363761
-## 5:     FALSE      TRUE        FALSE       TRUE      1
-## 6:     FALSE      TRUE        FALSE      FALSE 289276
-## 7:     FALSE     FALSE         TRUE      FALSE  60707
-## 8:     FALSE     FALSE        FALSE       TRUE  82712
-## 9:     FALSE     FALSE        FALSE      FALSE 104698
+<pre><code>##     eventConvection eventExtremeTemp eventFlood eventWinter eventOther
+##  1:            TRUE             TRUE      FALSE       FALSE      FALSE
+##  2:            TRUE            FALSE       TRUE        TRUE      FALSE
+##  3:            TRUE            FALSE       TRUE       FALSE      FALSE
+##  4:            TRUE            FALSE      FALSE        TRUE      FALSE
+##  5:            TRUE            FALSE      FALSE       FALSE      FALSE
+##  6:           FALSE             TRUE      FALSE        TRUE      FALSE
+##  7:           FALSE             TRUE      FALSE       FALSE      FALSE
+##  8:           FALSE            FALSE       TRUE        TRUE      FALSE
+##  9:           FALSE            FALSE       TRUE       FALSE      FALSE
+## 10:           FALSE            FALSE      FALSE        TRUE      FALSE
+## 11:           FALSE            FALSE      FALSE       FALSE       TRUE
+##          N
+##  1:   1561
+##  2:      1
+##  3:     41
+##  4:     28
+##  5: 736109
+##  6:      9
+##  7:   3541
+##  8:    371
+##  9:  94639
+## 10:  40957
+## 11:  25040
+</code></pre>
+
+<h4>Categorize event types</h4>
+
+<p>Now that event types are grouped, set up a categorization hierarchy of event
+types.
+The hierarchy is needed because records can have multiple events listed in the
+<code>evtype</code> variable.
+E.g., <em>THUNDERSTORM WINDS/FLASH FLOOD</em>.</p>
+
+<p>The hierarchy is as follows.</p>
+
+<ol>
+<li>Convection (including lightning, tornado, thunderstorm, wind, and hail)</li>
+<li>Extreme temperature (including hot and cold)</li>
+<li>Flood (including flood, flash flood, rain)</li>
+<li>Winter (including snow, ice, freeze, or winter weather)</li>
+<li>Other</li>
+</ol>
+
+<p>Under this categorization hierarchy, the example event type of <em>THUNDERSTORM
+WINDS/FLASH FLOOD</em> would be assigned to the <em>Convection</em> category.</p>
+
+<pre><code class="r">D &lt;- D[, `:=`(eventCategory, ifelse(eventConvection, 1, ifelse(eventExtremeTemp, 
+    2, ifelse(eventFlood, 3, ifelse(eventWinter, 4, ifelse(eventOther, 5, NA))))))]
+labels &lt;- c(&quot;Convection&quot;, &quot;Extreme temperature&quot;, &quot;Flood&quot;, &quot;Winter&quot;, &quot;Other&quot;)
+D &lt;- D[, `:=`(eventCategory, factor(eventCategory, labels = labels))]
+D[, .N, eventCategory]
+</code></pre>
+
+<pre><code>##          eventCategory      N
+## 1:          Convection 737740
+## 2:               Flood  95010
+## 3:              Winter  40957
+## 4: Extreme temperature   3550
+## 5:               Other  25040
 </code></pre>
 
 <h2>Results</h2>
@@ -1105,6 +1173,79 @@ However, there is no need to make any specific recommendations in your report.</
 plots in them (i.e. panel plots), but there cannot be more than three figures
 total.</p>
 </blockquote>
+
+<h3>Outcomes</h3>
+
+<p>The following outcomes are reported.</p>
+
+<ul>
+<li>Total number of fatalities</li>
+<li>Total number of injuries</li>
+<li>Property damage, in terms of dollars</li>
+</ul>
+
+<h3>By event category</h3>
+
+<p>Tabulate the outcomes by event type category.</p>
+
+<pre><code class="r">select &lt;- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), 
+    propertyDamage = sum(propdmg)))
+groupby &lt;- expression(list(eventCategory))
+tabEventCategory &lt;- D[, eval(select), eval(groupby)]
+tabEventCategory &lt;- tabEventCategory[order(eventCategory)]
+</code></pre>
+
+<p>Show the tabulation.</p>
+
+<pre><code class="r">print(xtable(tabEventCategory, digits = 0), type = &quot;html&quot;, include.rownames = FALSE)
+</code></pre>
+
+<!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
+
+<!-- Sun May 18 07:50:35 2014 -->
+
+<TABLE border=1>
+<TR> <TH> eventCategory </TH> <TH> numberEvents </TH> <TH> fatalities </TH> <TH> injuries </TH> <TH> propertyDamage </TH>  </TR>
+  <TR> <TD> Convection </TD> <TD align="right"> 737740 </TD> <TD align="right"> 7920 </TD> <TD align="right"> 109550 </TD> <TD align="right"> 7645872 </TD> </TR>
+  <TR> <TD> Extreme temperature </TD> <TD align="right"> 3550 </TD> <TD align="right"> 3368 </TD> <TD align="right"> 9504 </TD> <TD align="right"> 13150 </TD> </TR>
+  <TR> <TD> Flood </TD> <TD align="right"> 95010 </TD> <TD align="right"> 1639 </TD> <TD align="right"> 8937 </TD> <TD align="right"> 2494784 </TD> </TR>
+  <TR> <TD> Winter </TD> <TD align="right"> 40957 </TD> <TD align="right"> 528 </TD> <TD align="right"> 5270 </TD> <TD align="right"> 377444 </TD> </TR>
+  <TR> <TD> Other </TD> <TD align="right"> 25040 </TD> <TD align="right"> 1690 </TD> <TD align="right"> 7267 </TD> <TD align="right"> 353250 </TD> </TR>
+   </TABLE>
+
+<h3>By event category and year</h3>
+
+<p>Tabulate the outcomes by event type category and year.</p>
+
+<pre><code class="r">select &lt;- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), 
+    propertyDamage = sum(propdmg)))
+groupby &lt;- expression(list(eventCategory, year(beginDate)))
+tabEventCategoryYear &lt;- D[, eval(select), eval(groupby)]
+tabEventCategoryYear &lt;- tabEventCategoryYear[order(eventCategory, year)]
+</code></pre>
+
+<p>Plot the data.</p>
+
+<pre><code class="r">ggplot(tabEventCategoryYear, aes(x = year, y = fatalities, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = &quot;Category&quot;, palette = &quot;Set1&quot;) + 
+    labs(title = &quot;Fatalities&quot;, x = &quot;Year&quot;, y = &quot;Number&quot;) + theme(legend.position = &quot;bottom&quot;)
+</code></pre>
+
+<p><img src="data:image/png;base64,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" alt="plot of chunk fatalities"/> </p>
+
+<pre><code class="r">ggplot(tabEventCategoryYear, aes(x = year, y = injuries, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = &quot;Category&quot;, palette = &quot;Set1&quot;) + 
+    labs(title = &quot;Injuries&quot;, x = &quot;Year&quot;, y = &quot;Number&quot;) + theme(legend.position = &quot;bottom&quot;)
+</code></pre>
+
+<p><img src="data:image/png;base64,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" alt="plot of chunk injuries"/> </p>
+
+<pre><code class="r">ggplot(tabEventCategoryYear, aes(x = year, y = propertyDamage/1000, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = &quot;Category&quot;, palette = &quot;Set1&quot;) + 
+    labs(title = &quot;Property damage&quot;, x = &quot;Year&quot;, y = &quot;$ (thousands)&quot;) + theme(legend.position = &quot;bottom&quot;)
+</code></pre>
+
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfgAAAH4CAMAAACR9g9NAAABL1BMVEUAAAAAADoAAGYAOjoAOmYAOpAAZmYAZrY2iM83frg6AAA6ADo6AGY6OgA6Ojo6OmY6OpA6ZmY6ZrY6kJA6kLY6kNtNr0phrPJmAABmADpmAGZmOgBmOjpmOpBmZjpmZmZmZrZmkJBmtrZmtv9/f39/f5V/f6t/lcF/q9aQOgCQOjqQOmaQZgCQkGaQtpCQ27aQ29uQ2/+Vf3+Vf6uVlcGVweuYTqOrf5Wrf6urlZWrq6ur1v+2ZgC2Zjq2Zma2kDq2kJC2tma22/+2/7a2/9u2///BlX/BlZXBlavBwdbB6//PiDbWq3/W///bkDrb25Db29vb/7bb/9vb///kGhzl5eXrwZXr1qvr///y8vL/fwD/tmb/1qv/25D/27b/68H//7b//9b//9v//+v////5v/FeAAAACXBIWXMAAAsSAAALEgHS3X78AAAZiUlEQVR4nO2dj3/buHnG5Wyuer4sy7pJc9Kl183aJc6tt2mrvKz2td2uvqVdrO1qyosteafY/P//hgHgDwEkAAIkSILC83xsiiLBl4/45QuAv6RRDAWpUd8GoH4E8IEK4AMVwAcqgA9UAB+oAD5QAXygAvhABfCBCuADFcAHKoAPVAAfqAA+UAF8oAL4QAXwcfw/fRvoQ3sKfns8ojoxKPpwOilNWz+5dO/JL+0teMp8fTCvLgrw+6QEPGH68PYXo4P5w+lodHgdb198fTSiTNP3dCbV+GJMSi/H6aKjg1+QQvdHrMq4/5yUGa/Jf5xNyoukYQapPQd/8nBKAZ8SaheH19tjQmv55JIl+fLwOp05YRlOCsdxUgHQcizCxZPL+6NxvCbU7z+fZ5O2xxOyD+zC9PxZ62mvwa9prhM4908v2SQ2lQzWSdafsJkJ6ZOkUFrLZ1X9moI/YbOTiGzSmrIm+08WprdP2UR7C55W4aSJZ1wYKQJ4+2LOXpesgh9N2ExGn9T1aU3PMjjdU0akXSCZHtPl0p2GTmIlCfUsTL8ftab2Fnyah3LwafW8A3//9Hdp5mbgCWPWBHDgs0k5+IHW8kxBgJdW9TEP/uH0b5/mtfuuPhfBZ5OEqn6oCgK80Lm7SDt1rAOQgY+Xo3G2wJh17tasY38w58Gnk7L+Xxamt0/ZREGAz467tsdfJMdf9H3WAUiY0z5ctkRyrHZBmvNvj0/4Nj6dlBzOsQMCFmaQ2lPwcuW7Q1lpn95c6yE38DHAZ1pa9M3XrLIYZmc+F8BT3R9Z5e9ysAdxO9mDX0l0K5toJWlYG8FChQeA32cLAB+oBYAP1ALAB2oB4AO1APCBWgD4QC0AfKAWAD5QCwAfqAWAD9QCwAdqAeADtQDwgVoA+EAtAHygFgA+UAsAH6iF1EMkiw3we2wB4AO1APCBWgD4QC0AfKAWXID/MJv9/R/IkAzSIcB7b8EB+Mf/pKg3rz/mfwDvvwUH4D/92z/P3sQ3i/jTu6tkSCbOiJRVBOSNouoiSvCbL6/im/Ob8/jx/VUyTGeo97Mm2od088CCo87dZlHIeID33ELiQcbdGPxmEZOMRxs/LAsOwNNe/SJGr35YFlyAV0m5ukbah63ugQWAD9QCwAdqAeADtQDwgVoA+EAtAHygFgA+UAsAH6gFgA/UAsAHagHgA7UA8IFaAPhALQB8oBYAPlALAB+oBeZByh3g99oCwAdqAeADtQDwgVoA+EAtAHygFgA+UAsA75kFOQv3FgDeMwsArxLAO7EA8J5ZAHiVAN6JhTbB37ailsL6YiHq0oJ8Zcj4PizsQ8arVtdMAO/EAsB7ZgHgVdpv8BHAqwTwTiwAvF8WOgWvWBfA92AB4JXac/CGvTuAt5fXFgBeKYB3YgHg/bIA8EoBvBMLAO+XBYBXCuCdWAB4vywAvFIA78QCwPtlAeCVAngnFgDeLwsArxTAO7EA8F5ZiExvwQF4e/lsAeDVAngnFgDeKwsArxbAO7EA8F5Z6BS8ak0A372FVsGLkQHeJwsArxbA17UA8P5aAHi1AL6uBfGefSfgb/Br0m4sDAz8ZraI8fvxLiwMC/wPv/zfBU36T++ukiGZNiPSVBGQXFH6307wQmTDFSnBE9IbAv48fnx/lQzTGbK9yed088BCtDJMeR8y/oZm96KQ8QBfy8KgwBNt0MY7sRDlgxYsFPoPrsCjV+/AwuDAyyUL6vFW98ACwGsE8DUtALy/FgBeI4CvaQHg/bXQNng+NsB7ZAHgNQL4mhaK4JXrAfjOLQC8RgBf0wLA+2sB4DUC+JoWCsEB3iMLAK8RwNe0APD+WgB4jQC+pgWA99ZCxA3dWwB4by20Cj4SXgDeJwsArxPA17MA8P5aAHidAL6eBYD310KRjVMLAO+vhS7A568A748FPXhhMsDby18LAK8TwNezUASvblAAvmsLAK8TwNezAPD+WugEfPWxA8B3baECPD/da/C3railsD5YiISX0kx+ur2FqDAiXwuLjYzv2II2F8XfrmiS8VVnhgG+Ywv6bpcz8Cl6gPfGQmfgGXqA98ZCq+CLQSOA98ZCp+A1mwHgO7YA8FoBfC0LAO+vBYDXCuBrWQB4fy0AvFbhgudnALy9vLUA8FoBfC0LAO+vBS34wul1gLeXtxYAXqv9By8lD/AAX8sCwHtrIZKMiXMBvpF8tQDwegF8LQsA762FNsBrYgK8LxZaBV8OCfC+WKgGz80AeHv5agHg9QJ4cwu7S7kA768FgNcL4M0ttAF+PaI6AXhnFrTgo8KMvsCvR2P68nCqQy8L6utW98DCEMBvX11no7++BHg3FoYA3kyyoL5udQ8stAI+W8Qd+OXh9TJt4z/MZuf4GfHGFtyD5872OQO/fTEnf/dPSUW/eRN/ene1ef0x/wP4OhYGAv7lJcl5Bp6IgL9Z7IZkyozIsEWAEkWSscIkyYyqiJEypKmKVf3oYL5O+/QfZov45jx+fH+VDNMisr3J13Tr30IkHS1Myuf0lvEF3SwKGQ/wthaGB36zoODRxje0MAjw2+NRoieXrKafvUGvvqmFlsCXuoU6D2lsbcZfTMhgOdbV/7Kgnm51Dyy4Bx+VhlUe0tg68KRXnw8B3oWFVsFLItYE/3DKMv7wOlZLFtTTre6BhYGAp9dnRiNtTQ/wVhYixbgwwQPwBpIF9XSre2AB4CsE8KYW2gG/3h3OAbwLC22B54/mqzyksXXgt8fam28A3trCUMBrD+QA3t6CEfh8xMACv7M4rOrZCRyAd2dhIODTk7Zo451ZGAh4E8mCerrVPbDQHHwkfwvwfltoDTwdcQh+iarerYXG4Iu/PdAO+O2L+XqMq3MOLQwF/MvL5A/g3ViIlG+ECWrwxaY84sccXp17Oyd/2c2WAN/YwlDAx4T5ejTSHszLgvq51T2woAUflcbk4OXXdt2CN5AsqJ9b3QMLTcFHhYIAPxALbsBLStJRCXcXj1ABvAMLhuDLgMX3rYPnHqECeBcWrMBHUVyAWer9tQZeeIQK4BtbsAEfMQsCzhJvYabTqp57hArgm1uQgpdQTHtqzEKkSe/WwBtIFtTPre6BBWPwCcVYWYAViQB+KBZk4CN5xvMWFH29AmuXbTyux7u1IAWv5LqzUDxvI5XzjF/izJ0rCxLwkTqhOQuR/PyMOrjaQxa7Gjwu0jizUBu8oglXB1d7yGJXg19rq/rbVtRS2L4tROV3UT41KhWPS6XdSQs+beNxOOfKQvl8DHe5TZ/xzjxksaszXi+71ZkqKPDKvhvA28tPCyXw3HkYr8Czp2W1T0kDvI2FoYDH8/GOLQwFPL4Rw7GFInj+pJ1P4JHxbi1Exbe+gkcb79bCcMAbyG51pgoDvHDBFeCZraYBvLQwHPD4RgynFkpVPT/qE/jtizky3qGF4YDHN2I4taC+wOYZ+IpL8QBvaWEg4MUvMQb45hYGAt5MdqszVWjg5fdZ4JStvby00AX4aYWHPLYafF7V45StIwsDAY9evWsLAwG//Xk+il+adGJBd7+kR+Dx27KuLXQAfiqSnzLJCurA49ekHVvoAbyyoB68gWRBvdzqHliovDW+uQWA99FC5+CnOIHjhQWArxTA17QA8D5a6AQ8T74m+PvP57Rff6C9KC8L6uVW79+CLfe+wD+cnrBbMdY4ZevGQgfgpysH4JejkcF1WVlQH7e6BxY6Bz+td+bu4e2c3YmBjHdkYSjg4/sjemHuAm28IwuDAc/r8bvZ7PVH/Ix4Ewsdgd+RdwF+Q388/nzz+mP+B/C2FgYJnurm/GYRf3p3lQzJhBmRbgFIUNT+Kqb5gHs1kQ48Sfqb8/jx/VUyTKfK9iYf080DC11n/NTNzZYfSGVfyHiAt7LQPvgpN3QE/vG7c5r0aOMbWBgk+A+0PV+gV9/EQlfguRdcpPHBQsfgpzIPu9gA35kFgK8WwNeyAPBeWgD4agF8LQsA76WF1sFPhRGA98VCt+CnUg+72ADfmQWArxbA17EA8F5asOYO8DXkoQWANxDA17HA33Q1lXrgYgN8VxYA3kAAX8MCf0M9wPtjAeANBPA1LAC8nxYA3kAAX8PCtDwO8B5YAHgDAXwNCwDvp4VOwSs8cLEBvisLbYOXfcMVwHtgAeANBPD2FgDeUwsAbyCAt7cA8J5aAHgD7St49XfLNrcA8J5aaBm8NHSL4G9bUUthe7UQ0cG0NQtWkUlsZHxXFlgbb5XyXme83epMtYfg076dDXmAt5d/FgDeRMGCF2YDvL38s5AdxuvJ1wYvDwvw/VsAeBOFCn4K8A3ln4X8jK2OPMA3DeCfBTPwwlyAt5d/FnbXaDTka4NXxAT4/i0AvIkCBS/+lBDA15B/FrjL8UryAA/wGguyH4gGeG8t8DfgqMgbgE+hFyMAvLcWXIGXhlAFBPj+LRiAL+ayDrx4rgfg/bXgBryCNsD7a8E9eOE7b4w8cAL4riwId1fLQdmCL3x5bbUHTgDflQWAN1GQ4KfFWZXgs7fKEwMA37sF8TkagFfZahrAOwtq8IX6WgteccYO4P21YAyemwfw9vLOQuGRSf4YvHAyDuCbyDsLSvDTInAr8GyK+jovwPduQQO+kLYA30TeWXACXkZ4CvBeWwB4I4UDfioOVv6BZz8Zj1+Trmuh+EUoAmahobYEv5q2C34z+/IKvx9f34IWvJi2+ZgheDV3B+Aff//4/iq+WdDET4ZkIv1NeXUVAfGKCu+nwut0N4EfK0o+R13eXJqqnoE/py/JMJ1st5+ZKpiM370YZLzuMr6JB16W4MWMB3hzC3rwQkNtC97YAy878Gjja1uoAi+7j6rYevcHHr362hYqwEtvoJsWbqHvB7xCdqsz1f6DL95uI+E7TSxMZTtHLQ+8AL4jC1Xgi3NWOfjqG6xMPfAC+I4sWIDPj+1j4X0N7gDfvwWANxLA00EsTAB4E/lmofyd5ZoL6QBfX75ZkHxZvfqyWrZPALy9HFuw/5EBp+Ar7rMx9CAI4I0sAHyY4KM65KvBq1Bmu0RcntTEgyCAN7HQMfhsFsDbyzX4GuSbgJ8WLQC8oWQW7Ni1Dl5z60wZvPYGK0MPggDewEJkv3TRghS8ctFpyYL2BitDD4ICAm/ZUHsGvlbCAzxVQ/DW5BuAL1sAeENJwVux21mIhBdjRYrxOhbqCuBXzcHb0ot25etxB/gaKluwbaibgo9u6+4xEgt1BfD24CX5agWQgM+SHuCN1RZ4cwaRBHeUymj5xEJks86iAN5eTcFHq1hZUduAr3e2NxXA26tkwa69JaXU4E1iRLmF+tydgb+TxQZ4iSJmQXkYZwW+gQDeXkrwhtR24GXlq2MAfD21CJ4/vl5Ju2pRZkF5IFAJPpJZsJYj8DLuwYAXUGWwk9ci/Ci3oD4CrCIP8DXVLvgEuZj5pbF4pTnZVwE+klmwF8DbqwK8iJ17v5sK8HrdtiLnYSODIhH9Ey1EqgWj0kgSgkUwWJmRHG2FO2nsMDLe+Oi9YEF5+mV3dBgVJuZdBg+2Aqr6GmdRYv2CectQBK+yUENuwEu5DxV8JchuwIvd/kJZgK+QbNtWfOTqE+CF86W1wes8ALxsdcaSXuzSfuTI4JYK8QpJnfPlBuDFc7rFlQC8XtLs1X1kI5biNdE2wO/2WIDnV2cqefZqPnJ5M8uw5uBrXxGvBi+OldYB8FrJuah7VuUWVVpl3K74XaQV8AVTvoKXc+8dvKImVh5ER+UxKdhbvkCtS+KW4KUWGmqPwasueSvPl5ZreHmVcSspaSerrS7bRwFeIw14aV0QlcYVXb3berRFC+aSVSoAr5bqEDgHX5gheVfadZIzprdNuVtudYBPV2cmDXhZXVC8oCaJwKib3gmrVWdPap+1Z8FX8OpmOJbuEuWKv3hIlb/3IN3UFs4E1u2CV3D3FLz86aNSFhcujfFp7i34MyKB9ZmafB0LYjDPwMseTMjfs5HSo6oraTOqbgg8BZ/lOoenCfgy1UI0r8Cr29/d3lD4Ogrh1Uiegs90JoxxrAROVRbuiljJfnUnkGfgpTtW5+DNul1F8NbdNc/B72CI4AlKjmUl+DMR/FkSgOtCEPBn8gqlW/DG+ISwdfroQwF/Jry7ywdsRFVNZ/NJvc4XOUsXJuizKWdnHlT1Nvw6O5bqy4IUfAqJAr8jWsVl9PwUOsqBzbinpVgv8la573QF3jJr9x58IdXZ6w5SgpeSE0DfsV0iW+SOf0m7jbvaIoncL/ga51MCB88mnRELtK5Oau+7bBfIQGel031kVYiQjHYMvnCcpt0ACls1lhHkPfiENd/HExgxkomFszuxxk9Ic8m9OyF0VyzWdcZLHkyxUyDgk0RnLfIqbZZTFSzspq1S0qXkXhWrDPqu+6q+7y8BGQ74rCY/Kx93FSyk8JOeupDcYiuQT+6njY+iuum+CgJ8epJNd8gmscDY35UZF/eFZKomenvg66f7Khzw+kN1pQUJ0TsZZU34NsE3UAjgV2fadNdakC1oOi2NDfBdWrjje+jKs2rOLGg2A8B3buEuV+sWAD5QCwDvrYXPqFqz4Bo8fka8roXPisqmtmPBMfjN64/kD+BdWijtEcKesRLeyBZUe1DMrAP+ZhF/endFRmZEJgtA9ZVwFd4IUs8RC1TIDPx5/Pj+Kn3TeF+XKriMb8eC46o+z3iA99wC2vhALaBXH6gFHMcHagHgA7UA8IFaAPhALQB8oBYAPlALAB+oBYAP1ALAB2oB4AO1APCBWgD4QC20Cb4dzfo2EJoFgM8169sAwPejWd8GAL4fzfo2ECR4qGMBfKAC+EAF8IEK4ANVv+Dp3fqP381mizi+mc3eiLfzdm4hWXnXFujKX38UVt6FhV7Bb2ZfXsU3lPf5JhnyN/B3boGtvHMLm9LKO7HQJ/jH39MHs25ori1ufkUzXnhkp2sLP/zy46YHC1Q358lq+WHLq+y3qqdbnVZ1v1p8eMM+Pv+QXtcWSPaTPOvBAk36ZLX8sOV19g+e6mZBPmy8WfSQbpyFN/EP/9JNuoliO314GU9290//+ocNy/ju23jOQrK9O7fw+B3Z5+Og2vg03T7MZuesV7/oo1e/s0Ar/PPuLXygXzqwCKtXD/UngA9UAB+oAD5QAXygCh38w+mYDC/GffvoXKGDj+8/n8f3Ty/7ttG5ggdPs/1iEsfb49ETgv/+aDQ6ie///KdP9nxfAPjti6+fX8cU/nJM3rD8vz866dtW2wL4eElSnBHfvmRZTl4CqPsBPmnhSU0/Gh3MSeaPSJUP8CEoAZ9m+/EJq+oBPgAllEkbvz68puOknw/wISihTOp6WtMvR6M//ekJwEP7KoAPVAAfqAA+UAF8oAL4QAXwgQrgAxXAByqAD1QAH6gAPlABfKAC+EAF8IEK4AMVwAcqgA9UHoC/LajfME1WWbHOGg7b+1AA30AA30gA73QRQwF8AwF8IwG800UM1QJ4+sDpJHvzzbyyvOTDCSHk+u11+vCLOgyNQp99Tcvro1XalBSTgGfrnBSsUZENUS5NJrLHtJ9/ny8grkKybR5OR+y53t9e3//EyLRc7sHTJ03zp03XB3XA0ycYH061D6xuXxVRSSA8v9aU10czKiYDz2CYgl+exMsvJvF6t5MXViHZNsdku6yfXJKCnoFfHjLr9CnEwz+ejg7mFzR7yX76J2RvIOPjeD0aHfzZJP8aituIF9se6YZgpe+fHY0Or2luPL9moejTLof/MBrTrcuVuP1M0A48fQB+fDEaL589uWQB7v/ieDS5IIvEF2nFQubG4iw6Mo6TiemCtMiYbuxv5umUH08FieDZEvnwyc8I+DNBSelv/vEV+XD0CV32KXIndBVxfCeIriDZSZYT6oV4zD5EUtxC7sFfHGb7LEl38rcke+fxCRmSaoDuqceTNal+l4ffH6cpLU0EtjzdZCcE38PbORlfntAJSzohXv7lK1rV8yUU1S7ZHhdfjGkmLcdxGuApdUQWTN7GLM8Ks+hDVFkBsiAhRFaRZhkBn4T6r7+WrpN8yMxaPqSVmCR9X33/6o9f/e4rukDyKXIny7Fu26wn1MvTy2TL5MUt1FrG0x2Rgb+gDe2ETKX46Q46pvX/9sXX2fNp5Q/H9ur/+w/6GdeTZFNvX3778nLJQrG5WwaeLyEBn1b1tBml4CdxEoBS/IpyTd4m0QqzaMz1JJm4TGqZAw58GurH5XVmGZ9Y2w2lVX38638nkf7u5+yZ/ORzZk6SWk+xbUjG77xwxS3UWhtPEj/NeLYjCBnPnkN/lu2jkkRgbfwkzWf28bi2kPJc/4jPeD34h7dfP79OwKcBMrp520rzTJyVZny6lelfmvEk1It5Gqq4Sh58IePJ0jLwy2dkY/3NRACfr1S+bcQ2/ps5X9xCrfXqSUNOGvX7o4N/Ir3Qw2vSxv/oOGvjKfh11t3W9OqTFvwnee+XTqDNBKlNvz0+/D5v41XgWa/+r04nrGE5/M0kDZDTTePRrUlbV37Wro0fnZCNSkId/OyEFCO9FtJcL9NQkqpe0cYfPJOCp/tX+mUcKfjMiQp81qsnBf872TJccQt1eBy/Peb76eu8MyL5cHXkKEwqox5zcZWBH8dLRbPvkDtSWe6O0wHe6SKGwpm7BgL4RgJ4p4sYygPwUB8C+EAF8IEK4AMVwAcqgA9UAB+oAD5QAXygAvhABfCBCuADFcAHKoAPVAAfqAA+UAF8oAL4QAXwgQrgAxXAByqAD1T/D2wKhVgZtuELAAAAAElFTkSuQmCC" alt="plot of chunk propertydamage"/> </p>
 
 </body>
 

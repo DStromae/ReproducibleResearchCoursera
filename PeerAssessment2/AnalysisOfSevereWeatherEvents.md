@@ -91,7 +91,7 @@ Unzip the data file.
 
 
 ```r
-executable <- file.path("C:", "Program Files (x86)", "7-Zip", "7z.exe")
+executable <- file.path("C:", "Program Files", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
 cmd <- paste(paste0("\"", executable, "\""), parameters, paste0("\"", f, "\""), 
@@ -104,6 +104,7 @@ system(cmd)
 
 ### Read data file
 
+The data file (CSV format) is in the working directory.
 Read the CSV file as a data frame.
 Then convert to a data table.
 
@@ -194,34 +195,32 @@ Scale the property damage variable into a new variable, `propertyDamage`.
 
 
 ```r
-D[, .N, propdmgexp][order(N, decreasing = TRUE)]
+D <- D[, `:=`(propdmgexp, toupper(propdmgexp))]
+D[, .N, propdmgexp]
 ```
 
 ```
 ##     propdmgexp      N
-##  1:            465934
-##  2:          K 424665
-##  3:          M  11330
-##  4:          0    216
-##  5:          B     40
-##  6:          5     28
-##  7:          1     25
-##  8:          2     13
+##  1:          K 424665
+##  2:          M  11337
+##  3:            465934
+##  4:          B     40
+##  5:          +      5
+##  6:          0    216
+##  7:          5     28
+##  8:          6      4
 ##  9:          ?      8
-## 10:          m      7
-## 11:          H      6
-## 12:          +      5
-## 13:          7      5
-## 14:          6      4
-## 15:          4      4
-## 16:          3      4
-## 17:          h      1
-## 18:          -      1
-## 19:          8      1
+## 10:          4      4
+## 11:          2     13
+## 12:          3      4
+## 13:          H      7
+## 14:          7      5
+## 15:          -      1
+## 16:          1     25
+## 17:          8      1
 ```
 
 ```r
-D <- D[, `:=`(propdmgexp, toupper(propdmgexp))]
 D <- D[, `:=`(propertyDamage, ifelse(propdmgexp == "B", propdmg * 1e+09, ifelse(propdmgexp == 
     "M", propdmg * 1e+06, ifelse(propdmgexp == "K", propdmg * 1000, ifelse(propdmgexp == 
     "H", propdmg * 100, propdmg)))))]
@@ -231,6 +230,42 @@ summary(D$propertyDamage)
 ```
 ##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
 ## 0.00e+00 0.00e+00 0.00e+00 4.74e+05 5.00e+02 1.15e+11
+```
+
+
+Scale the crop damage variable into a new variable, `cropDamage`.
+
+* If `cropdmgexp` = `B`, then multiply `cropdmg` by 1,000,000,000
+* Else if `cropdmgexp` = `M`, then multiply `cropdmg` by 1,000,000
+* Else if `cropdmgexp` = `K`, then multiply `cropdmg` by 1,000
+* Else leave `cropdmg` as-is
+
+
+```r
+D <- D[, `:=`(cropdmgexp, toupper(cropdmgexp))]
+D[, .N, cropdmgexp]
+```
+
+```
+##    cropdmgexp      N
+## 1:            618413
+## 2:          M   1995
+## 3:          K 281853
+## 4:          B      9
+## 5:          ?      7
+## 6:          0     19
+## 7:          2      1
+```
+
+```r
+D <- D[, `:=`(cropDamage, ifelse(cropdmgexp == "B", cropdmg * 1e+09, ifelse(cropdmgexp == 
+    "M", cropdmg * 1e+06, ifelse(cropdmgexp == "K", cropdmg * 1000, cropdmg))))]
+summary(D$cropDamage)
+```
+
+```
+##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## 0.00e+00 0.00e+00 0.00e+00 5.44e+04 0.00e+00 5.00e+09
 ```
 
 
@@ -250,6 +285,8 @@ message(sprintf("Number of unique values of evtype: %.0d", length(unique(D$evtyp
 ```
 
 
+Group event types to mimic the categories found in the [2009 Annual Summaries](http://www.ncdc.noaa.gov/oa/climate/sd/annsum2009.pdf) on page 3.
+
 `evtype` needs a lot of data cleaning.
 Particularly, values need to be grouped to resolve spelling variations.
 Also, records can have multiple events listed in the `evtype` variable.
@@ -259,451 +296,462 @@ Define a helper function `freqtab` to help with grouping `evtype` values.
 
 
 ```r
-indicator <- function(x) {
-    indicator <- grepl(x, D$evtype, ignore.case = TRUE)
-    show(unique(D[indicator, evtype]))
+indicator <- function(regex) {
+    indicator <- grepl(regex, D$evtype, ignore.case = TRUE)
+    uniqueEventTypes <- unique(D[indicator, evtype])
+    show(uniqueEventTypes[order(uniqueEventTypes)])
     indicator
 }
 ```
 
 
-Create an indicator for variations of **Wind**.
+Create an indicators for variations of **Lightning**, **Tornado**, **Thunderstorm Wind**, and **Hail**.
+These fall into the top-level category of **Convection**.
 
 
 ```r
-regex <- "(WIND)|(WND)"
-D <- D[, `:=`(eventWind, indicator(regex))]
+regexLightning <- "\\bL\\S+?G\\b"
+regexTornado <- "(NADO)|(\\bTOR\\S+?O\\b|(\\bFUN))"
+regexThunderstorm <- "THUNDERSTORM|TSTM"
+regexWind <- "(WIND)|(WND)"
+regexHail <- "HAIL"
+regex <- paste(regexLightning, regexTornado, regexThunderstorm, regexWind, regexHail, 
+    sep = "|")
+D <- D[, `:=`(eventConvection, indicator(regex))]
 ```
 
 ```
-##   [1] "TSTM WIND"                      "HURRICANE OPAL/HIGH WINDS"     
-##   [3] "THUNDERSTORM WINDS"             "THUNDERSTORM WIND"             
-##   [5] "HIGH WINDS"                     "THUNDERSTORM WINDS LIGHTNING"  
-##   [7] "THUNDERSTORM WINDS/HAIL"        "WIND"                          
-##   [9] "THUNDERSTORM WINDS HAIL"        "HIGH WIND"                     
-##  [11] "WIND CHILL"                     "HIGH WIND/BLIZZARD"            
-##  [13] "HIGH WIND AND HIGH TIDES"       "HIGH WIND/BLIZZARD/FREEZING RA"
-##  [15] "HIGH WIND AND HEAVY SNOW"       "RECORD COLD AND HIGH WIND"     
-##  [17] "HIGH WINDS HEAVY RAINS"         "HIGH WIND/ BLIZZARD"           
-##  [19] "BLIZZARD/HIGH WIND"             "HIGH WIND/LOW WIND CHILL"      
-##  [21] "HIGH WINDS AND WIND CHILL"      "HEAVY SNOW/HIGH WINDS/FREEZING"
-##  [23] "WIND CHILL/HIGH WIND"           "HIGH WIND/WIND CHILL/BLIZZARD" 
-##  [25] "HIGH WIND/WIND CHILL"           "HIGH WIND/HEAVY SNOW"          
-##  [27] "HIGH WIND/SEAS"                 "HIGH WINDS/HEAVY RAIN"         
-##  [29] "HEAVY SNOW/WIND"                "WIND DAMAGE"                   
-##  [31] "THUNDERSTORM WINDS/FUNNEL CLOU" "WINTER STORM/HIGH WIND"        
-##  [33] "WINTER STORM/HIGH WINDS"        "GUSTY WINDS"                   
-##  [35] "STRONG WINDS"                   "SNOW AND WIND"                 
-##  [37] "HIGH WINDS DUST STORM"          "WINTER STORM HIGH WINDS"       
-##  [39] "SEVERE THUNDERSTORM WINDS"      "THUNDERSTORMS WINDS"           
-##  [41] "FLOOD/RAIN/WINDS"               "WINDS"                         
-##  [43] "FLASH FLOOD WINDS"              "STRONG WIND"                   
-##  [45] "HIGH WIND DAMAGE"               "FLOOD/RAIN/WIND"               
-##  [47] "DOWNBURST WINDS"                "DRY MICROBURST WINDS"          
-##  [49] "DRY MIRCOBURST WINDS"           "MICROBURST WINDS"              
-##  [51] "HIGH WINDS 57"                  "HIGH WINDS 66"                 
-##  [53] "HIGH WINDS 76"                  "HIGH WINDS 63"                 
-##  [55] "HIGH WINDS 67"                  "HEAVY SNOW/HIGH WINDS"         
-##  [57] "HIGH WINDS 82"                  "HIGH WINDS 80"                 
-##  [59] "HIGH WINDS 58"                  "LIGHTNING THUNDERSTORM WINDSS" 
-##  [61] "HIGH WINDS 73"                  "HIGH WINDS 55"                 
-##  [63] "THUNDERSTORM WINDS 60"          "THUNDERSTORM WINDSS"           
-##  [65] "HIGH WINDS/FLOODING"            "TORNADOES, TSTM WIND, HAIL"    
-##  [67] "LIGHTNING THUNDERSTORM WINDS"   "THUNDERSTORM WINDS53"          
-##  [69] "THUNDERSTORM WINDS 13"          "HEAVY SNOW/HIGH WIND"          
-##  [71] "HIGH WINDS/"                    "EXTREME WIND CHILLS"           
-##  [73] "HIGH  WINDS"                    "EXTREME WIND CHILL"            
-##  [75] "GRADIENT WINDS"                 "THUNDERSTORM WINDS URBAN FLOOD"
-##  [77] "THUNDERSTORM WINDS SMALL STREA" "BLOWING SNOW- EXTREME WIND CHI"
-##  [79] "SNOW- HIGH WIND- WIND CHILL"    "THUNDERSTORM WINDS 2"          
-##  [81] "TSTM WIND 51"                   "TSTM WIND 50"                  
-##  [83] "TSTM WIND 52"                   "TSTM WIND 55"                  
-##  [85] "THUNDERSTORM WINDS 61"          "THUNDERTORM WINDS"             
-##  [87] "HAIL/WINDS"                     "WIND STORM"                    
-##  [89] "HAIL/WIND"                      "WIND/HAIL"                     
-##  [91] "THUNDERSTORMS WIND"             "THUNDERSTORM  WINDS"           
-##  [93] "TUNDERSTORM WIND"               "THUNDERTSORM WIND"             
-##  [95] "THUNDERSTORM WINDS/ HAIL"       "THUNDERSTORM WIND/LIGHTNING"   
-##  [97] "THUNDESTORM WINDS"              "HIGH WIND 63"                  
-##  [99] "HIGH WINDS/COASTAL FLOOD"       "THUNDERSTORM WIND G50"         
-## [101] "THUNDERSTORM WINDS/HEAVY RAIN"  "THUNDERSTROM WINDS"            
-## [103] "THUNDERSTORM WINDS      LE CEN" "BLIZZARD AND EXTREME WIND CHIL"
-## [105] "LOW WIND CHILL"                 "BLOWING SNOW & EXTREME WIND CH"
-## [107] "THUNDERSTORM WINDS G"           "DUST STORM/HIGH WINDS"         
-## [109] "THUNDERSTORM WIND G60"          "THUNDERSTORM WINDS."           
-## [111] "THUNDERSTORM WIND G55"          "THUNDERSTORM WINDS G60"        
-## [113] "THUNDERSTORM WINDS FUNNEL CLOU" "THUNDERSTORM WINDS 62"         
-## [115] "HEAVY SNOW AND HIGH WINDS"      "HEAVY SNOW/HIGH WINDS & FLOOD" 
-## [117] "THUNDERSTORM WINDS/FLASH FLOOD" "HIGH WIND 70"                  
-## [119] "THUNDERSTORM WINDS 53"          "RAIN AND WIND"                 
-## [121] "THUNDERSTORM WIND 59"           "THUNDERSTORM WIND 52"          
-## [123] "THUNDERSTORM WIND 69"           "LIGHTNING AND WINDS"           
-## [125] "TSTM WIND G58"                  "THUNDERSTORMW WINDS"           
-## [127] "THUNDERSTORM WIND 60 MPH"       "THUNDERSTORM WIND 65MPH"       
-## [129] "THUNDERSTORM WIND/ TREES"       "THUNDERSTORM WIND/AWNING"      
-## [131] "THUNDERSTORM WIND 98 MPH"       "THUNDERSTORM WIND TREES"       
-## [133] "THUNDERSTORM WIND 59 MPH"       "THUNDERSTORM WINDS 63 MPH"     
-## [135] "THUNDERSTORM WIND/ TREE"        "THUNDERSTORM WIND 65 MPH"      
-## [137] "THUNDERSTORM WIND."             "THUNDERSTORM WIND 59 MPH."     
-## [139] "THUNDERSTORM WINDSHAIL"         "THUDERSTORM WINDS"             
-## [141] "STORM FORCE WINDS"              "THUNDERSTORM WINDS AND"        
-## [143] "HEAVY RAIN; URBAN FLOOD WINDS;" "TSTM WIND DAMAGE"              
-## [145] "RAIN/WIND"                      "THUNDERSTORM WINDS 50"         
-## [147] "THUNDERSTORM WIND G52"          "THUNDERSTORM WINDS 52"         
-## [149] "THUNDERSTORM WIND G51"          "THUNDERSTORM WIND G61"         
-## [151] "THUNDERESTORM WINDS"            "THUNDERSTORM WINDS/FLOODING"   
-## [153] "THUNDEERSTORM WINDS"            "THUNDERSTORM WIND 50"          
-## [155] "THUNERSTORM WINDS"              "HIGH WINDS/COLD"               
-## [157] "COLD/WINDS"                     "THUNDERSTORM WIND 56"          
-## [159] "ICE/STRONG WINDS"               "EXTREME WIND CHILL/BLOWING SNO"
-## [161] "SNOW/HIGH WINDS"                "HIGH WINDS/SNOW"               
-## [163] "HEAVY SNOW AND STRONG WINDS"    "BLOWING SNOW/EXTREME WIND CHIL"
-## [165] "THUNDERSTORM WIND/HAIL"         "TSTM WINDS"                    
-## [167] "TSTM WIND 65)"                  "THUNDERSTORM WINDS/ FLOOD"     
-## [169] "HIGH WIND AND SEAS"             "THUNDERSTORMWINDS"             
-## [171] "THUNDERSTORM WINDS HEAVY RAIN"  "THUNDERSTROM WIND"             
-## [173] "HIGH WIND 48"                   "EXTREME WINDCHILL"             
-## [175] "TSTM WIND/HAIL"                 "High Wind"                     
-## [177] "Tstm Wind"                      "Wind"                          
-## [179] "Wind Damage"                    "Strong Wind"                   
-## [181] "Heavy Rain and Wind"            "Thunderstorm Wind"             
-## [183] "HEAVY RAIN/WIND"                "Strong Winds"                  
-## [185] "Strong winds"                   "Whirlwind"                     
-## [187] "Gusty Wind"                     "Gradient wind"                 
-## [189] "Gusty wind/rain"                "GUSTY WIND/HVY RAIN"           
-## [191] "TSTM WIND (G45)"                "Gusty Winds"                   
-## [193] "GUSTY WIND"                     "TSTM WIND 40"                  
-## [195] "TSTM WIND 45"                   "TSTM WIND (41)"                
-## [197] "TSTM WIND (G40)"                "TSTM WND"                      
-## [199] " TSTM WIND"                     "STRONG WIND GUST"              
-## [201] "Gusty winds"                    "GRADIENT WIND"                 
-## [203] "Flood/Strong Wind"              "TSTM WIND AND LIGHTNING"       
-## [205] "gradient wind"                  "Heavy surf and wind"           
-## [207] " TSTM WIND (G45)"               "TSTM WIND  (G45)"              
-## [209] "HIGH WIND (G40)"                "TSTM WIND (G35)"               
-## [211] "WAKE LOW WIND"                  "COLD WIND CHILL TEMPERATURES"  
-## [213] "BITTER WIND CHILL"              "BITTER WIND CHILL TEMPERATURES"
-## [215] "WIND ADVISORY"                  "GUSTY WIND/HAIL"               
-## [217] "EXTREME WINDCHILL TEMPERATURES" "WIND AND WAVE"                 
-## [219] " WIND"                          "TSTM WIND G45"                 
-## [221] "NON-SEVERE WIND DAMAGE"         "THUNDERSTORM WIND (G40)"       
-## [223] "WIND GUSTS"                     "GUSTY LAKE WIND"               
-## [225] "WND"                            "NON-TSTM WIND"                 
-## [227] "NON TSTM WIND"                  "GUSTY THUNDERSTORM WINDS"      
-## [229] "MARINE TSTM WIND"               "WHIRLWIND"                     
-## [231] "EXTREME COLD/WIND CHILL"        "GUSTY THUNDERSTORM WIND"       
-## [233] "COLD/WIND CHILL"                "MARINE HIGH WIND"              
-## [235] "MARINE THUNDERSTORM WIND"       "MARINE STRONG WIND"
+##   [1] " LIGHTNING"                     " TSTM WIND"                    
+##   [3] " TSTM WIND (G45)"               " WIND"                         
+##   [5] "BITTER WIND CHILL"              "BITTER WIND CHILL TEMPERATURES"
+##   [7] "BLIZZARD AND EXTREME WIND CHIL" "BLIZZARD/HIGH WIND"            
+##   [9] "BLOWING SNOW- EXTREME WIND CHI" "BLOWING SNOW & EXTREME WIND CH"
+##  [11] "BLOWING SNOW/EXTREME WIND CHIL" "COLD AIR FUNNEL"               
+##  [13] "COLD AIR FUNNELS"               "COLD AIR TORNADO"              
+##  [15] "COLD WIND CHILL TEMPERATURES"   "COLD/WIND CHILL"               
+##  [17] "COLD/WINDS"                     "DEEP HAIL"                     
+##  [19] "DOWNBURST WINDS"                "DRY MICROBURST WINDS"          
+##  [21] "DRY MIRCOBURST WINDS"           "DUST STORM/HIGH WINDS"         
+##  [23] "EXTREME COLD/WIND CHILL"        "EXTREME WIND CHILL"            
+##  [25] "EXTREME WIND CHILL/BLOWING SNO" "EXTREME WIND CHILLS"           
+##  [27] "EXTREME WINDCHILL"              "EXTREME WINDCHILL TEMPERATURES"
+##  [29] "FLASH FLOOD WINDS"              "FLASH FLOODING/THUNDERSTORM WI"
+##  [31] "FLOOD/RAIN/WIND"                "FLOOD/RAIN/WINDS"              
+##  [33] "Flood/Strong Wind"              "FUNNEL"                        
+##  [35] "Funnel Cloud"                   "FUNNEL CLOUD"                  
+##  [37] "FUNNEL CLOUD."                  "FUNNEL CLOUD/HAIL"             
+##  [39] "FUNNEL CLOUDS"                  "FUNNELS"                       
+##  [41] "gradient wind"                  "Gradient wind"                 
+##  [43] "GRADIENT WIND"                  "GRADIENT WINDS"                
+##  [45] "GUSTNADO"                       "GUSTNADO AND"                  
+##  [47] "GUSTY LAKE WIND"                "GUSTY THUNDERSTORM WIND"       
+##  [49] "GUSTY THUNDERSTORM WINDS"       "Gusty Wind"                    
+##  [51] "GUSTY WIND"                     "GUSTY WIND/HAIL"               
+##  [53] "GUSTY WIND/HVY RAIN"            "Gusty wind/rain"               
+##  [55] "Gusty winds"                    "Gusty Winds"                   
+##  [57] "GUSTY WINDS"                    "HAIL"                          
+##  [59] "HAIL 0.75"                      "HAIL 0.88"                     
+##  [61] "HAIL 075"                       "HAIL 088"                      
+##  [63] "HAIL 1.00"                      "HAIL 1.75"                     
+##  [65] "HAIL 1.75)"                     "HAIL 100"                      
+##  [67] "HAIL 125"                       "HAIL 150"                      
+##  [69] "HAIL 175"                       "HAIL 200"                      
+##  [71] "HAIL 225"                       "HAIL 275"                      
+##  [73] "HAIL 450"                       "HAIL 75"                       
+##  [75] "HAIL 80"                        "HAIL 88"                       
+##  [77] "HAIL ALOFT"                     "HAIL DAMAGE"                   
+##  [79] "HAIL FLOODING"                  "HAIL STORM"                    
+##  [81] "Hail(0.75)"                     "HAIL/ICY ROADS"                
+##  [83] "HAIL/WIND"                      "HAIL/WINDS"                    
+##  [85] "HAILSTORM"                      "HAILSTORMS"                    
+##  [87] "Heavy Rain and Wind"            "HEAVY RAIN/LIGHTNING"          
+##  [89] "HEAVY RAIN/WIND"                "HEAVY RAIN; URBAN FLOOD WINDS;"
+##  [91] "HEAVY SNOW AND HIGH WINDS"      "HEAVY SNOW AND STRONG WINDS"   
+##  [93] "HEAVY SNOW/HIGH WIND"           "HEAVY SNOW/HIGH WINDS"         
+##  [95] "HEAVY SNOW/HIGH WINDS & FLOOD"  "HEAVY SNOW/HIGH WINDS/FREEZING"
+##  [97] "HEAVY SNOW/WIND"                "Heavy surf and wind"           
+##  [99] "HIGH  WINDS"                    "High Wind"                     
+## [101] "HIGH WIND"                      "HIGH WIND (G40)"               
+## [103] "HIGH WIND 48"                   "HIGH WIND 63"                  
+## [105] "HIGH WIND 70"                   "HIGH WIND AND HEAVY SNOW"      
+## [107] "HIGH WIND AND HIGH TIDES"       "HIGH WIND AND SEAS"            
+## [109] "HIGH WIND DAMAGE"               "HIGH WIND/ BLIZZARD"           
+## [111] "HIGH WIND/BLIZZARD"             "HIGH WIND/BLIZZARD/FREEZING RA"
+## [113] "HIGH WIND/HEAVY SNOW"           "HIGH WIND/LOW WIND CHILL"      
+## [115] "HIGH WIND/SEAS"                 "HIGH WIND/WIND CHILL"          
+## [117] "HIGH WIND/WIND CHILL/BLIZZARD"  "HIGH WINDS"                    
+## [119] "HIGH WINDS 55"                  "HIGH WINDS 57"                 
+## [121] "HIGH WINDS 58"                  "HIGH WINDS 63"                 
+## [123] "HIGH WINDS 66"                  "HIGH WINDS 67"                 
+## [125] "HIGH WINDS 73"                  "HIGH WINDS 76"                 
+## [127] "HIGH WINDS 80"                  "HIGH WINDS 82"                 
+## [129] "HIGH WINDS AND WIND CHILL"      "HIGH WINDS DUST STORM"         
+## [131] "HIGH WINDS HEAVY RAINS"         "HIGH WINDS/"                   
+## [133] "HIGH WINDS/COASTAL FLOOD"       "HIGH WINDS/COLD"               
+## [135] "HIGH WINDS/FLOODING"            "HIGH WINDS/HEAVY RAIN"         
+## [137] "HIGH WINDS/SNOW"                "HURRICANE OPAL/HIGH WINDS"     
+## [139] "ICE/STRONG WINDS"               "LATE SEASON HAIL"              
+## [141] "LIGHTING"                       "LIGHTNING"                     
+## [143] "LIGHTNING  WAUSEON"             "LIGHTNING AND HEAVY RAIN"      
+## [145] "LIGHTNING AND THUNDERSTORM WIN" "LIGHTNING AND WINDS"           
+## [147] "LIGHTNING DAMAGE"               "LIGHTNING FIRE"                
+## [149] "LIGHTNING INJURY"               "LIGHTNING THUNDERSTORM WINDS"  
+## [151] "LIGHTNING THUNDERSTORM WINDSS"  "LIGHTNING."                    
+## [153] "LIGHTNING/HEAVY RAIN"           "LIGNTNING"                     
+## [155] "LOW WIND CHILL"                 "MARINE HAIL"                   
+## [157] "MARINE HIGH WIND"               "MARINE STRONG WIND"            
+## [159] "MARINE THUNDERSTORM WIND"       "MARINE TSTM WIND"              
+## [161] "MICROBURST WINDS"               "NON-SEVERE WIND DAMAGE"        
+## [163] "NON-TSTM WIND"                  "NON SEVERE HAIL"               
+## [165] "NON TSTM WIND"                  "RAIN AND WIND"                 
+## [167] "RAIN/WIND"                      "RECORD COLD AND HIGH WIND"     
+## [169] "SEVERE THUNDERSTORM"            "SEVERE THUNDERSTORM WINDS"     
+## [171] "SEVERE THUNDERSTORMS"           "small hail"                    
+## [173] "Small Hail"                     "SMALL HAIL"                    
+## [175] "SNOW- HIGH WIND- WIND CHILL"    "SNOW AND WIND"                 
+## [177] "SNOW/HIGH WINDS"                "STORM FORCE WINDS"             
+## [179] "Strong Wind"                    "STRONG WIND"                   
+## [181] "STRONG WIND GUST"               "Strong winds"                  
+## [183] "Strong Winds"                   "STRONG WINDS"                  
+## [185] "THUDERSTORM WINDS"              "THUNDEERSTORM WINDS"           
+## [187] "THUNDERESTORM WINDS"            "THUNDERSTORM"                  
+## [189] "THUNDERSTORM  WINDS"            "THUNDERSTORM DAMAGE"           
+## [191] "THUNDERSTORM DAMAGE TO"         "THUNDERSTORM HAIL"             
+## [193] "THUNDERSTORM W INDS"            "Thunderstorm Wind"             
+## [195] "THUNDERSTORM WIND"              "THUNDERSTORM WIND (G40)"       
+## [197] "THUNDERSTORM WIND 50"           "THUNDERSTORM WIND 52"          
+## [199] "THUNDERSTORM WIND 56"           "THUNDERSTORM WIND 59"          
+## [201] "THUNDERSTORM WIND 59 MPH"       "THUNDERSTORM WIND 59 MPH."     
+## [203] "THUNDERSTORM WIND 60 MPH"       "THUNDERSTORM WIND 65 MPH"      
+## [205] "THUNDERSTORM WIND 65MPH"        "THUNDERSTORM WIND 69"          
+## [207] "THUNDERSTORM WIND 98 MPH"       "THUNDERSTORM WIND G50"         
+## [209] "THUNDERSTORM WIND G51"          "THUNDERSTORM WIND G52"         
+## [211] "THUNDERSTORM WIND G55"          "THUNDERSTORM WIND G60"         
+## [213] "THUNDERSTORM WIND G61"          "THUNDERSTORM WIND TREES"       
+## [215] "THUNDERSTORM WIND."             "THUNDERSTORM WIND/ TREE"       
+## [217] "THUNDERSTORM WIND/ TREES"       "THUNDERSTORM WIND/AWNING"      
+## [219] "THUNDERSTORM WIND/HAIL"         "THUNDERSTORM WIND/LIGHTNING"   
+## [221] "THUNDERSTORM WINDS"             "THUNDERSTORM WINDS      LE CEN"
+## [223] "THUNDERSTORM WINDS 13"          "THUNDERSTORM WINDS 2"          
+## [225] "THUNDERSTORM WINDS 50"          "THUNDERSTORM WINDS 52"         
+## [227] "THUNDERSTORM WINDS 53"          "THUNDERSTORM WINDS 60"         
+## [229] "THUNDERSTORM WINDS 61"          "THUNDERSTORM WINDS 62"         
+## [231] "THUNDERSTORM WINDS 63 MPH"      "THUNDERSTORM WINDS AND"        
+## [233] "THUNDERSTORM WINDS FUNNEL CLOU" "THUNDERSTORM WINDS G"          
+## [235] "THUNDERSTORM WINDS G60"         "THUNDERSTORM WINDS HAIL"       
+## [237] "THUNDERSTORM WINDS HEAVY RAIN"  "THUNDERSTORM WINDS LIGHTNING"  
+## [239] "THUNDERSTORM WINDS SMALL STREA" "THUNDERSTORM WINDS URBAN FLOOD"
+## [241] "THUNDERSTORM WINDS."            "THUNDERSTORM WINDS/ FLOOD"     
+## [243] "THUNDERSTORM WINDS/ HAIL"       "THUNDERSTORM WINDS/FLASH FLOOD"
+## [245] "THUNDERSTORM WINDS/FLOODING"    "THUNDERSTORM WINDS/FUNNEL CLOU"
+## [247] "THUNDERSTORM WINDS/HAIL"        "THUNDERSTORM WINDS/HEAVY RAIN" 
+## [249] "THUNDERSTORM WINDS53"           "THUNDERSTORM WINDSHAIL"        
+## [251] "THUNDERSTORM WINDSS"            "THUNDERSTORM WINS"             
+## [253] "THUNDERSTORMS"                  "THUNDERSTORMS WIND"            
+## [255] "THUNDERSTORMS WINDS"            "THUNDERSTORMW"                 
+## [257] "THUNDERSTORMW 50"               "THUNDERSTORMW WINDS"           
+## [259] "THUNDERSTORMWINDS"              "THUNDERSTROM WIND"             
+## [261] "THUNDERSTROM WINDS"             "THUNDERTORM WINDS"             
+## [263] "THUNDERTSORM WIND"              "THUNDESTORM WINDS"             
+## [265] "THUNERSTORM WINDS"              "TORNADO"                       
+## [267] "TORNADO DEBRIS"                 "TORNADO F0"                    
+## [269] "TORNADO F1"                     "TORNADO F2"                    
+## [271] "TORNADO F3"                     "TORNADO/WATERSPOUT"            
+## [273] "TORNADOES"                      "TORNADOES, TSTM WIND, HAIL"    
+## [275] "TORNADOS"                       "TORNDAO"                       
+## [277] "TSTM"                           "TSTM HEAVY RAIN"               
+## [279] "Tstm Wind"                      "TSTM WIND"                     
+## [281] "TSTM WIND  (G45)"               "TSTM WIND (41)"                
+## [283] "TSTM WIND (G35)"                "TSTM WIND (G40)"               
+## [285] "TSTM WIND (G45)"                "TSTM WIND 40"                  
+## [287] "TSTM WIND 45"                   "TSTM WIND 50"                  
+## [289] "TSTM WIND 51"                   "TSTM WIND 52"                  
+## [291] "TSTM WIND 55"                   "TSTM WIND 65)"                 
+## [293] "TSTM WIND AND LIGHTNING"        "TSTM WIND DAMAGE"              
+## [295] "TSTM WIND G45"                  "TSTM WIND G58"                 
+## [297] "TSTM WIND/HAIL"                 "TSTM WINDS"                    
+## [299] "TSTM WND"                       "TSTMW"                         
+## [301] "TUNDERSTORM WIND"               "WAKE LOW WIND"                 
+## [303] "WALL CLOUD/FUNNEL CLOUD"        "WATERSPOUT-TORNADO"            
+## [305] "WATERSPOUT FUNNEL CLOUD"        "WATERSPOUT TORNADO"            
+## [307] "WATERSPOUT/ TORNADO"            "WATERSPOUT/TORNADO"            
+## [309] "Whirlwind"                      "WHIRLWIND"                     
+## [311] "Wind"                           "WIND"                          
+## [313] "WIND ADVISORY"                  "WIND AND WAVE"                 
+## [315] "WIND CHILL"                     "WIND CHILL/HIGH WIND"          
+## [317] "Wind Damage"                    "WIND DAMAGE"                   
+## [319] "WIND GUSTS"                     "WIND STORM"                    
+## [321] "WIND/HAIL"                      "WINDS"                         
+## [323] "WINTER STORM HIGH WINDS"        "WINTER STORM/HIGH WIND"        
+## [325] "WINTER STORM/HIGH WINDS"        "WND"
 ```
 
 
-Create an indicator for variations of **Hail**.
+Create an indicators for variations of **Cold** and **Heat**.
+These fall into the top-level category of **Extreme Temperatures**.
 
 
 ```r
-regex <- "HAIL"
-D <- D[, `:=`(eventHail, indicator(regex))]
+regex <- "COLD|HEAT"
+D <- D[, `:=`(eventExtremeTemp, indicator(regex))]
 ```
 
 ```
-##  [1] "HAIL"                       "THUNDERSTORM WINDS/HAIL"   
-##  [3] "THUNDERSTORM WINDS HAIL"    "HAIL 1.75)"                
-##  [5] "HAIL STORM"                 "HAIL 75"                   
-##  [7] "TORNADOES, TSTM WIND, HAIL" "SMALL HAIL"                
-##  [9] "HAIL 80"                    "FUNNEL CLOUD/HAIL"         
-## [11] "HAIL 0.75"                  "HAIL 1.00"                 
-## [13] "HAIL/WINDS"                 "HAIL/WIND"                 
-## [15] "HAIL 1.75"                  "WIND/HAIL"                 
-## [17] "THUNDERSTORM WINDS/ HAIL"   "HAIL 225"                  
-## [19] "HAIL 0.88"                  "DEEP HAIL"                 
-## [21] "HAIL 88"                    "HAIL 175"                  
-## [23] "HAIL 100"                   "HAIL 150"                  
-## [25] "HAIL 075"                   "HAIL 125"                  
-## [27] "HAIL 200"                   "HAIL FLOODING"             
-## [29] "HAIL DAMAGE"                "THUNDERSTORM HAIL"         
-## [31] "HAIL 088"                   "THUNDERSTORM WINDSHAIL"    
-## [33] "HAIL/ICY ROADS"             "HAIL ALOFT"                
-## [35] "THUNDERSTORM WIND/HAIL"     "HAIL 275"                  
-## [37] "HAIL 450"                   "HAILSTORM"                 
-## [39] "HAILSTORMS"                 "TSTM WIND/HAIL"            
-## [41] "small hail"                 "Hail(0.75)"                
-## [43] "Small Hail"                 "GUSTY WIND/HAIL"           
-## [45] "LATE SEASON HAIL"           "NON SEVERE HAIL"           
-## [47] "MARINE HAIL"
+##  [1] "Cold"                         "COLD"                        
+##  [3] "COLD AIR FUNNEL"              "COLD AIR FUNNELS"            
+##  [5] "COLD AIR TORNADO"             "Cold and Frost"              
+##  [7] "COLD AND FROST"               "COLD AND SNOW"               
+##  [9] "COLD AND WET CONDITIONS"      "Cold Temperature"            
+## [11] "COLD TEMPERATURES"            "COLD WAVE"                   
+## [13] "COLD WEATHER"                 "COLD WIND CHILL TEMPERATURES"
+## [15] "COLD/WIND CHILL"              "COLD/WINDS"                  
+## [17] "DROUGHT/EXCESSIVE HEAT"       "Excessive Cold"              
+## [19] "EXCESSIVE HEAT"               "EXCESSIVE HEAT/DROUGHT"      
+## [21] "Extended Cold"                "Extreme Cold"                
+## [23] "EXTREME COLD"                 "EXTREME COLD/WIND CHILL"     
+## [25] "EXTREME HEAT"                 "EXTREME/RECORD COLD"         
+## [27] "FOG AND COLD TEMPERATURES"    "HEAT"                        
+## [29] "HEAT DROUGHT"                 "Heat Wave"                   
+## [31] "HEAT WAVE"                    "HEAT WAVE DROUGHT"           
+## [33] "HEAT WAVES"                   "HEAT/DROUGHT"                
+## [35] "Heatburst"                    "HIGH WINDS/COLD"             
+## [37] "Prolong Cold"                 "PROLONG COLD"                
+## [39] "PROLONG COLD/SNOW"            "RECORD  COLD"                
+## [41] "Record Cold"                  "RECORD COLD"                 
+## [43] "RECORD COLD AND HIGH WIND"    "RECORD COLD/FROST"           
+## [45] "Record Heat"                  "RECORD HEAT"                 
+## [47] "RECORD HEAT WAVE"             "RECORD SNOW/COLD"            
+## [49] "RECORD/EXCESSIVE HEAT"        "SEVERE COLD"                 
+## [51] "SNOW AND COLD"                "SNOW/ BITTER COLD"           
+## [53] "SNOW/COLD"                    "SNOW\\COLD"                  
+## [55] "Unseasonable Cold"            "UNSEASONABLY COLD"           
+## [57] "UNUSUALLY COLD"
 ```
 
 
-Create an indicator for variations of **Flood**.
+Create an indicators for variations of **Flood** and **Rain**.
+These fall into the top-level category of **Flood**.
 
 
 ```r
-regex <- "FLOOD"
+regexFlood <- "(\\bFL\\S+?D)"
+regexRain <- "RAIN|PRECIP|SHOWER"
+regex <- paste(regexFlood, regexRain, sep = "|")
 D <- D[, `:=`(eventFlood, indicator(regex))]
 ```
 
 ```
-##   [1] "ICE STORM/FLASH FLOOD"          "FLASH FLOOD"                   
-##   [3] "FLASH FLOODING"                 "FLOODING"                      
-##   [5] "FLOOD"                          "FLASH FLOODING/THUNDERSTORM WI"
-##   [7] "BREAKUP FLOODING"               "RIVER FLOOD"                   
-##   [9] "COASTAL FLOOD"                  "FLOOD WATCH/"                  
-##  [11] "FLASH FLOODS"                   "FLOODING/HEAVY RAIN"           
-##  [13] "HEAVY SURF COASTAL FLOODING"    "URBAN FLOODING"                
-##  [15] "URBAN/SMALL FLOODING"           "LOCAL FLOOD"                   
-##  [17] "FLOOD/FLASH FLOOD"              "FLOOD/RAIN/WINDS"              
-##  [19] "FLASH FLOOD WINDS"              "URBAN/SMALL STREAM FLOODING"   
-##  [21] "STREAM FLOODING"                "FLASH FLOOD/"                  
-##  [23] "FLOOD/RAIN/WIND"                "SMALL STREAM URBAN FLOOD"      
-##  [25] "URBAN FLOOD"                    "HEAVY RAIN/FLOODING"           
-##  [27] "COASTAL FLOODING"               "HIGH WINDS/FLOODING"           
-##  [29] "URBAN/SMALL STREAM FLOOD"       "MINOR FLOODING"                
-##  [31] "URBAN/SMALL STREAM  FLOOD"      "URBAN AND SMALL STREAM FLOOD"  
-##  [33] "SMALL STREAM FLOODING"          "FLOODS"                        
-##  [35] "SMALL STREAM AND URBAN FLOODIN" "SMALL STREAM/URBAN FLOOD"      
-##  [37] "SMALL STREAM AND URBAN FLOOD"   "RURAL FLOOD"                   
-##  [39] "THUNDERSTORM WINDS URBAN FLOOD" "MAJOR FLOOD"                   
-##  [41] "ICE JAM FLOODING"               "STREET FLOOD"                  
-##  [43] "SMALL STREAM FLOOD"             "LAKE FLOOD"                    
-##  [45] "URBAN AND SMALL STREAM FLOODIN" "RIVER AND STREAM FLOOD"        
-##  [47] "MINOR FLOOD"                    "HIGH WINDS/COASTAL FLOOD"      
-##  [49] "RIVER FLOODING"                 "FLOOD/RIVER FLOOD"             
-##  [51] "MUD SLIDES URBAN FLOODING"      "HEAVY SNOW/HIGH WINDS & FLOOD" 
-##  [53] "HAIL FLOODING"                  "THUNDERSTORM WINDS/FLASH FLOOD"
-##  [55] "HEAVY RAIN AND FLOOD"           "LOCAL FLASH FLOOD"             
-##  [57] "FLOOD/FLASH FLOODING"           "COASTAL/TIDAL FLOOD"           
-##  [59] "FLASH FLOOD/FLOOD"              "FLASH FLOOD FROM ICE JAMS"     
-##  [61] "FLASH FLOOD - HEAVY RAIN"       "FLASH FLOOD/ STREET"           
-##  [63] "FLASH FLOOD/HEAVY RAIN"         "HEAVY RAIN; URBAN FLOOD WINDS;"
-##  [65] "FLOOD FLASH"                    "FLOOD FLOOD/FLASH"             
-##  [67] "TIDAL FLOOD"                    "FLOOD/FLASH"                   
-##  [69] "HEAVY RAINS/FLOODING"           "THUNDERSTORM WINDS/FLOODING"   
-##  [71] "HIGHWAY FLOODING"               "FLASH FLOOD/ FLOOD"            
-##  [73] "HEAVY RAIN/MUDSLIDES/FLOOD"     "BEACH EROSION/COASTAL FLOOD"   
-##  [75] "SNOWMELT FLOODING"              "FLASH FLOODING/FLOOD"          
-##  [77] "BEACH FLOOD"                    "THUNDERSTORM WINDS/ FLOOD"     
-##  [79] "FLOOD & HEAVY RAIN"             "FLOOD/FLASHFLOOD"              
-##  [81] "URBAN SMALL STREAM FLOOD"       "URBAN FLOOD LANDSLIDE"         
-##  [83] "URBAN FLOODS"                   "HEAVY RAIN/URBAN FLOOD"        
-##  [85] "FLASH FLOOD/LANDSLIDE"          "LANDSLIDE/URBAN FLOOD"         
-##  [87] "FLASH FLOOD LANDSLIDES"         "Minor Flooding"                
-##  [89] "Ice jam flood (minor"           "Coastal Flooding"              
-##  [91] "COASTALFLOOD"                   "Erosion/Cstl Flood"            
-##  [93] "Tidal Flooding"                 "River Flooding"                
-##  [95] "Flood/Flash Flood"              "STREET FLOODING"               
-##  [97] "Flood"                          "TIDAL FLOODING"                
-##  [99] " COASTAL FLOOD"                 "Urban Flooding"                
-## [101] "Urban flood"                    "Urban Flood"                   
-## [103] "Coastal Flood"                  "coastal flooding"              
-## [105] "Flood/Strong Wind"              "COASTAL FLOODING/EROSION"      
-## [107] "URBAN/STREET FLOODING"          "COASTAL  FLOODING/EROSION"     
-## [109] "FLOOD/FLASH/FLOOD"              " FLASH FLOOD"                  
-## [111] "CSTL FLOODING/EROSION"          "LAKESHORE FLOOD"
+##   [1] " COASTAL FLOOD"                 " FLASH FLOOD"                  
+##   [3] "BEACH EROSION/COASTAL FLOOD"    "BEACH FLOOD"                   
+##   [5] "BELOW NORMAL PRECIPITATION"     "BLIZZARD/FREEZING RAIN"        
+##   [7] "BREAKUP FLOODING"               "COASTAL  FLOODING/EROSION"     
+##   [9] "Coastal Flood"                  "COASTAL FLOOD"                 
+##  [11] "coastal flooding"               "Coastal Flooding"              
+##  [13] "COASTAL FLOODING"               "COASTAL FLOODING/EROSION"      
+##  [15] "COASTAL/TIDAL FLOOD"            "CSTL FLOODING/EROSION"         
+##  [17] "EARLY RAIN"                     "Erosion/Cstl Flood"            
+##  [19] "EXCESSIVE PRECIPITATION"        "EXCESSIVE RAIN"                
+##  [21] "EXCESSIVE RAINFALL"             "FLASH FLOOD"                   
+##  [23] "FLASH FLOOD - HEAVY RAIN"       "FLASH FLOOD FROM ICE JAMS"     
+##  [25] "FLASH FLOOD LANDSLIDES"         "FLASH FLOOD WINDS"             
+##  [27] "FLASH FLOOD/"                   "FLASH FLOOD/ FLOOD"            
+##  [29] "FLASH FLOOD/ STREET"            "FLASH FLOOD/FLOOD"             
+##  [31] "FLASH FLOOD/HEAVY RAIN"         "FLASH FLOOD/LANDSLIDE"         
+##  [33] "FLASH FLOODING"                 "FLASH FLOODING/FLOOD"          
+##  [35] "FLASH FLOODING/THUNDERSTORM WI" "FLASH FLOODS"                  
+##  [37] "FLASH FLOOODING"                "Flood"                         
+##  [39] "FLOOD"                          "FLOOD & HEAVY RAIN"            
+##  [41] "FLOOD FLASH"                    "FLOOD FLOOD/FLASH"             
+##  [43] "FLOOD WATCH/"                   "FLOOD/FLASH"                   
+##  [45] "Flood/Flash Flood"              "FLOOD/FLASH FLOOD"             
+##  [47] "FLOOD/FLASH FLOODING"           "FLOOD/FLASH/FLOOD"             
+##  [49] "FLOOD/FLASHFLOOD"               "FLOOD/RAIN/WIND"               
+##  [51] "FLOOD/RAIN/WINDS"               "FLOOD/RIVER FLOOD"             
+##  [53] "Flood/Strong Wind"              "FLOODING"                      
+##  [55] "FLOODING/HEAVY RAIN"            "FLOODS"                        
+##  [57] "Freezing rain"                  "Freezing Rain"                 
+##  [59] "FREEZING RAIN"                  "FREEZING RAIN AND SLEET"       
+##  [61] "FREEZING RAIN AND SNOW"         "FREEZING RAIN SLEET AND"       
+##  [63] "FREEZING RAIN SLEET AND LIGHT"  "FREEZING RAIN/SLEET"           
+##  [65] "FREEZING RAIN/SNOW"             "GUSTY WIND/HVY RAIN"           
+##  [67] "Gusty wind/rain"                "HAIL FLOODING"                 
+##  [69] "HEAVY PRECIPATATION"            "Heavy Precipitation"           
+##  [71] "HEAVY PRECIPITATION"            "Heavy rain"                    
+##  [73] "Heavy Rain"                     "HEAVY RAIN"                    
+##  [75] "HEAVY RAIN AND FLOOD"           "Heavy Rain and Wind"           
+##  [77] "HEAVY RAIN EFFECTS"             "HEAVY RAIN/FLOODING"           
+##  [79] "Heavy Rain/High Surf"           "HEAVY RAIN/LIGHTNING"          
+##  [81] "HEAVY RAIN/MUDSLIDES/FLOOD"     "HEAVY RAIN/SEVERE WEATHER"     
+##  [83] "HEAVY RAIN/SMALL STREAM URBAN"  "HEAVY RAIN/SNOW"               
+##  [85] "HEAVY RAIN/URBAN FLOOD"         "HEAVY RAIN/WIND"               
+##  [87] "HEAVY RAIN; URBAN FLOOD WINDS;" "HEAVY RAINFALL"                
+##  [89] "HEAVY RAINS"                    "HEAVY RAINS/FLOODING"          
+##  [91] "HEAVY SHOWER"                   "HEAVY SHOWERS"                 
+##  [93] "HEAVY SNOW   FREEZING RAIN"     "Heavy snow shower"             
+##  [95] "HEAVY SNOW/FREEZING RAIN"       "HEAVY SNOW/HIGH WINDS & FLOOD" 
+##  [97] "HEAVY SURF COASTAL FLOODING"    "HIGH WINDS HEAVY RAINS"        
+##  [99] "HIGH WINDS/COASTAL FLOOD"       "HIGH WINDS/FLOODING"           
+## [101] "HIGH WINDS/HEAVY RAIN"          "HIGHWAY FLOODING"              
+## [103] "HVY RAIN"                       "Ice jam flood (minor"          
+## [105] "ICE JAM FLOODING"               "ICE STORM/FLASH FLOOD"         
+## [107] "LAKE FLOOD"                     "LAKESHORE FLOOD"               
+## [109] "LANDSLIDE/URBAN FLOOD"          "LIGHT FREEZING RAIN"           
+## [111] "LIGHT SNOW/FREEZING PRECIP"     "LIGHTNING AND HEAVY RAIN"      
+## [113] "LIGHTNING/HEAVY RAIN"           "LOCAL FLASH FLOOD"             
+## [115] "LOCAL FLOOD"                    "LOCALLY HEAVY RAIN"            
+## [117] "MAJOR FLOOD"                    "MINOR FLOOD"                   
+## [119] "Minor Flooding"                 "MINOR FLOODING"                
+## [121] "MIXED PRECIP"                   "Mixed Precipitation"           
+## [123] "MIXED PRECIPITATION"            "MONTHLY PRECIPITATION"         
+## [125] "Monthly Rainfall"               "MONTHLY RAINFALL"              
+## [127] "MUD SLIDES URBAN FLOODING"      "NORMAL PRECIPITATION"          
+## [129] "PROLONGED RAIN"                 "RAIN"                          
+## [131] "RAIN (HEAVY)"                   "RAIN AND WIND"                 
+## [133] "Rain Damage"                    "RAIN/SNOW"                     
+## [135] "RAIN/WIND"                      "RAINSTORM"                     
+## [137] "RECORD LOW RAINFALL"            "RECORD PRECIPITATION"          
+## [139] "RECORD RAINFALL"                "RECORD/EXCESSIVE RAINFALL"     
+## [141] "REMNANTS OF FLOYD"              "RIVER AND STREAM FLOOD"        
+## [143] "RIVER FLOOD"                    "River Flooding"                
+## [145] "RIVER FLOODING"                 "RURAL FLOOD"                   
+## [147] "SLEET & FREEZING RAIN"          "SLEET/FREEZING RAIN"           
+## [149] "SLEET/RAIN/SNOW"                "SMALL STREAM AND URBAN FLOOD"  
+## [151] "SMALL STREAM AND URBAN FLOODIN" "SMALL STREAM FLOOD"            
+## [153] "SMALL STREAM FLOODING"          "SMALL STREAM URBAN FLOOD"      
+## [155] "SMALL STREAM/URBAN FLOOD"       "SNOW FREEZING RAIN"            
+## [157] "SNOW SHOWERS"                   "SNOW/FREEZING RAIN"            
+## [159] "SNOW/RAIN"                      "SNOW/RAIN/SLEET"               
+## [161] "SNOW/SLEET/FREEZING RAIN"       "SNOW/SLEET/RAIN"               
+## [163] "SNOWMELT FLOODING"              "STREAM FLOODING"               
+## [165] "STREET FLOOD"                   "STREET FLOODING"               
+## [167] "Thundersnow shower"             "THUNDERSTORM WINDS HEAVY RAIN" 
+## [169] "THUNDERSTORM WINDS URBAN FLOOD" "THUNDERSTORM WINDS/ FLOOD"     
+## [171] "THUNDERSTORM WINDS/FLASH FLOOD" "THUNDERSTORM WINDS/FLOODING"   
+## [173] "THUNDERSTORM WINDS/HEAVY RAIN"  "TIDAL FLOOD"                   
+## [175] "Tidal Flooding"                 "TIDAL FLOODING"                
+## [177] "TORRENTIAL RAIN"                "Torrential Rainfall"           
+## [179] "TSTM HEAVY RAIN"                "UNSEASONAL RAIN"               
+## [181] "URBAN AND SMALL STREAM FLOOD"   "URBAN AND SMALL STREAM FLOODIN"
+## [183] "Urban flood"                    "Urban Flood"                   
+## [185] "URBAN FLOOD"                    "URBAN FLOOD LANDSLIDE"         
+## [187] "Urban Flooding"                 "URBAN FLOODING"                
+## [189] "URBAN FLOODS"                   "URBAN SMALL STREAM FLOOD"      
+## [191] "URBAN/SMALL FLOODING"           "URBAN/SMALL STREAM  FLOOD"     
+## [193] "URBAN/SMALL STREAM FLOOD"       "URBAN/SMALL STREAM FLOODING"   
+## [195] "URBAN/STREET FLOODING"
 ```
 
 
-Create an indicator for variations of **Tornado**.
-
-
-```r
-regex <- "(NADO)|(\\bTOR\\S+?O\\b)"
-D <- D[, `:=`(eventTornado, indicator(regex))]
-```
-
-```
-##  [1] "TORNADO"                    "TORNADO F0"                
-##  [3] "GUSTNADO AND"               "TORNADOS"                  
-##  [5] "WATERSPOUT/TORNADO"         "WATERSPOUT TORNADO"        
-##  [7] "WATERSPOUT-TORNADO"         "TORNADOES, TSTM WIND, HAIL"
-##  [9] "GUSTNADO"                   "COLD AIR TORNADO"          
-## [11] "WATERSPOUT/ TORNADO"        "TORNADO F3"                
-## [13] "TORNDAO"                    "TORNADO F1"                
-## [15] "TORNADO/WATERSPOUT"         "TORNADO F2"                
-## [17] "TORNADOES"                  "TORNADO DEBRIS"
-```
-
-
-Create an indicator for variations of **Lightning**.
-
-
-```r
-regex <- "\\bL\\S+?G\\b"
-D <- D[, `:=`(eventLightning, indicator(regex))]
-```
-
-```
-##  [1] "LIGHTNING"                      "THUNDERSTORM WINDS LIGHTNING"  
-##  [3] "LIGHTING"                       "LIGHTNING AND HEAVY RAIN"      
-##  [5] "HEAVY RAIN/LIGHTNING"           "LIGHTNING/HEAVY RAIN"          
-##  [7] "LIGHTNING THUNDERSTORM WINDSS"  "LIGHTNING THUNDERSTORM WINDS"  
-##  [9] "LIGHTNING INJURY"               "LIGHTNING AND THUNDERSTORM WIN"
-## [11] "LIGNTNING"                      "THUNDERSTORM WIND/LIGHTNING"   
-## [13] "LIGHTNING."                     "LIGHTNING FIRE"                
-## [15] "LIGHTNING DAMAGE"               "LIGHTNING AND WINDS"           
-## [17] "LIGHTNING  WAUSEON"             "TSTM WIND AND LIGHTNING"       
-## [19] " LIGHTNING"
-```
-
-
-Create an indicator for variations of **Snow, Ice, Freeze, or Winter Weather**.
+Create an indicator for variations of **Snow**, **Ice**, **Freeze**, or **Winter Weather**.
+These fall into the top-level category of **Winter**.
 
 
 ```r
 regex <- "(SNOW)|(ICE)|(ICY)|(FREEZ)|(WINT)"
-D <- D[, `:=`(eventSnow, indicator(regex))]
+D <- D[, `:=`(eventWinter, indicator(regex))]
 ```
 
 ```
-##   [1] "FREEZING RAIN"                  "SNOW"                          
-##   [3] "ICE STORM/FLASH FLOOD"          "SNOW/ICE"                      
-##   [5] "WINTER STORM"                   "HEAVY SNOW"                    
-##   [7] "FREEZE"                         "HIGH WIND/BLIZZARD/FREEZING RA"
-##   [9] "HIGH WIND AND HEAVY SNOW"       "ICE STORM"                     
-##  [11] "HEAVY SNOW/HIGH"                "HEAVY SNOW/HIGH WINDS/FREEZING"
-##  [13] "HIGH WIND/HEAVY SNOW"           "RECORD SNOWFALL"               
-##  [15] "HEAVY SNOW/WIND"                "WINTER STORM/HIGH WIND"        
-##  [17] "WINTER STORM/HIGH WINDS"        "SNOW AND WIND"                 
-##  [19] "WINTER STORM HIGH WINDS"        "WINTER STORMS"                 
-##  [21] "HEAVY SNOWPACK"                 "ICE"                           
-##  [23] "BLIZZARD/HEAVY SNOW"            "HEAVY SNOW/HIGH WINDS"         
-##  [25] "BLOWING SNOW"                   "FREEZING DRIZZLE"              
-##  [27] "LIGHT SNOW AND SLEET"           "FIRST SNOW"                    
-##  [29] "FREEZING RAIN AND SLEET"        "WINTRY MIX"                    
-##  [31] "WINTER WEATHER"                 "SLEET/RAIN/SNOW"               
-##  [33] "RAIN/SNOW"                      "SNOW/RAIN/SLEET"               
-##  [35] "DAMAGING FREEZE"                "HEAVY SNOW/HIGH WIND"          
-##  [37] "FREEZING RAIN/SNOW"             "THUNDERSNOW"                   
-##  [39] "HEAVY RAIN/SNOW"                "SNOW/SLEET/FREEZING RAIN"      
-##  [41] "GLAZE ICE"                      "EARLY SNOW"                    
-##  [43] "HEAVY SNOW/BLOWING SNOW"        "SLEET/ICE STORM"               
-##  [45] "BLOWING SNOW- EXTREME WIND CHI" "SNOW AND HEAVY SNOW"           
-##  [47] "SNOW/HEAVY SNOW"                "FREEZING RAIN/SLEET"           
-##  [49] "ICE JAM FLOODING"               "SNOW- HIGH WIND- WIND CHILL"   
-##  [51] "ICE/SNOW"                       "HEAVY SNOW/BLIZZARD"           
-##  [53] "SNOW AND ICE"                   "SNOWSTORM"                     
-##  [55] "SNOW AND ICE STORM"             "HEAVY SNOW/SLEET"              
-##  [57] "AGRICULTURAL FREEZE"            "HEAVY SNOW/ICE STORM"          
-##  [59] "HEAVY SNOW AND ICE STORM"       "SNOW/RAIN"                     
-##  [61] "ICE FLOES"                      "SNOW SQUALLS"                  
-##  [63] "SNOW SQUALL"                    "BLIZZARD/FREEZING RAIN"        
-##  [65] "HEAVY LAKE SNOW"                "HEAVY SNOW/FREEZING RAIN"      
-##  [67] "LAKE EFFECT SNOW"               "HEAVY WET SNOW"                
-##  [69] "BLIZZARD AND HEAVY SNOW"        "HEAVY SNOW AND ICE"            
-##  [71] "ICE STORM AND SNOW"             "HEAVY SNOW ANDBLOWING SNOW"    
-##  [73] "HEAVY SNOW/ICE"                 "BLOWING SNOW & EXTREME WIND CH"
-##  [75] "GLAZE/ICE STORM"                "HEAVY SNOW/WINTER STORM"       
-##  [77] "BLIZZARD/WINTER STORM"          "ICE JAM"                       
-##  [79] "FROST\\FREEZE"                  "HARD FREEZE"                   
-##  [81] "HEAVY SNOW AND HIGH WINDS"      "HEAVY SNOW/HIGH WINDS & FLOOD" 
-##  [83] "WET SNOW"                       "SNOW/ICE STORM"                
-##  [85] "LIGHT SNOW"                     "RECORD SNOW"                   
-##  [87] "SNOW/COLD"                      "FLASH FLOOD FROM ICE JAMS"     
-##  [89] "HEAVY SNOW SQUALLS"             "HEAVY SNOW/SQUALLS"            
-##  [91] "HEAVY SNOW-SQUALLS"             "ICY ROADS"                     
-##  [93] "SNOW FREEZING RAIN"             "LACK OF SNOW"                  
-##  [95] "SNOW/SLEET"                     "SNOW/FREEZING RAIN"            
-##  [97] "SNOW DROUGHT"                   "HEAVY SNOW   FREEZING RAIN"    
-##  [99] "ICE AND SNOW"                   "FREEZING RAIN AND SNOW"        
-## [101] "FREEZING RAIN SLEET AND"        "HEAVY SNOW & ICE"              
-## [103] "FREEZING DRIZZLE AND FREEZING"  "HAIL/ICY ROADS"                
-## [105] "SNOW SHOWERS"                   "HEAVY SNOW/BLIZZARD/AVALANCHE" 
-## [107] "RECORD SNOW/COLD"               "FREEZING RAIN SLEET AND LIGHT" 
-## [109] "SLEET & FREEZING RAIN"          "SNOW/ BITTER COLD"             
-## [111] "SNOW SLEET"                     "EARLY FREEZE"                  
-## [113] "ICE/STRONG WINDS"               "SNOW/HIGH WINDS"               
-## [115] "HIGH WINDS/SNOW"                "SNOWMELT FLOODING"             
-## [117] "HEAVY SNOW AND STRONG WINDS"    "SNOW ACCUMULATION"             
-## [119] "BLOWING SNOW/EXTREME WIND CHIL" "SNOW/ ICE"                     
-## [121] "SNOW/BLOWING SNOW"              "NEAR RECORD SNOW"              
-## [123] "SLEET/SNOW"                     "SNOW/SLEET/RAIN"               
-## [125] "SNOW AND COLD"                  "PROLONG COLD/SNOW"             
-## [127] "SNOW\\COLD"                     "WINTER MIX"                    
-## [129] "SNOWFALL RECORD"                "HEAVY SNOW AND"                
-## [131] "LAKE-EFFECT SNOW"               "Ice jam flood (minor"          
-## [133] "Snow"                           "Freeze"                        
-## [135] "Snow Squalls"                   "Light Snow/Flurries"           
-## [137] "Damaging Freeze"                "Icy Roads"                     
-## [139] "Wintry Mix"                     "blowing snow"                  
-## [141] "Ice Fog"                        "Freezing Rain"                 
-## [143] "Late-season Snowfall"           "Winter Weather"                
-## [145] "Snow squalls"                   "Ice/Snow"                      
-## [147] "Snow Accumulation"              "Freezing Fog"                  
-## [149] "Drifting Snow"                  "Heavy snow shower"             
-## [151] "LATE SNOW"                      "Record May Snow"               
-## [153] "Record Winter Snow"             "Light snow"                    
-## [155] "Late Season Snowfall"           "Light Snow"                    
-## [157] "Black Ice"                      "Snow and Ice"                  
-## [159] "Freezing Spray"                 "Light Snowfall"                
-## [161] "Freezing Drizzle"               "Blowing Snow"                  
-## [163] "Early snowfall"                 "Monthly Snowfall"              
-## [165] "Seasonal Snowfall"              "Thundersnow shower"            
-## [167] "COLD AND SNOW"                  "SLEET/FREEZING RAIN"           
-## [169] "BLACK ICE"                      "Wintry mix"                    
-## [171] "Frost/Freeze"                   "LATE FREEZE"                   
-## [173] "Lake Effect Snow"               "Snow and sleet"                
-## [175] "Freezing rain"                  "Icestorm/Blizzard"             
-## [177] "Freezing drizzle"               "Mountain Snows"                
-## [179] "WINTERY MIX"                    "MODERATE SNOW"                 
-## [181] "MODERATE SNOWFALL"              "ICE PELLETS"                   
-## [183] "SNOW AND SLEET"                 "LIGHT SNOW/FREEZING PRECIP"    
-## [185] "EARLY SNOWFALL"                 "FREEZING FOG"                  
-## [187] "EXCESSIVE SNOW"                 "LIGHT FREEZING RAIN"           
-## [189] "MONTHLY SNOWFALL"               "ICE ROADS"                     
-## [191] "LATE SEASON SNOW"               "WINTER WEATHER MIX"            
-## [193] "SNOW ADVISORY"                  "UNUSUALLY LATE SNOW"           
-## [195] "ACCUMULATED SNOWFALL"           "FALLING SNOW/ICE"              
-## [197] "PATCHY ICE"                     "FROST/FREEZE"                  
-## [199] "WINTER WEATHER/MIX"             "ICE ON ROAD"
-```
-
-
-Create an indicator for variations of **Rain**.
-
-
-```r
-regex <- "RAIN"
-D <- D[, `:=`(eventRain, indicator(regex))]
-```
-
-```
-##  [1] "FREEZING RAIN"                  "HEAVY RAIN"                    
-##  [3] "HEAVY RAINS"                    "LIGHTNING AND HEAVY RAIN"      
-##  [5] "HEAVY RAIN/LIGHTNING"           "LIGHTNING/HEAVY RAIN"          
-##  [7] "HIGH WINDS HEAVY RAINS"         "HIGH WINDS/HEAVY RAIN"         
-##  [9] "RECORD RAINFALL"                "FLOODING/HEAVY RAIN"           
-## [11] "RAINSTORM"                      "FLOOD/RAIN/WINDS"              
-## [13] "FLOOD/RAIN/WIND"                "HEAVY RAIN/FLOODING"           
-## [15] "FREEZING RAIN AND SLEET"        "SLEET/RAIN/SNOW"               
-## [17] "RAIN/SNOW"                      "SNOW/RAIN/SLEET"               
-## [19] "FREEZING RAIN/SNOW"             "HEAVY RAIN/SNOW"               
-## [21] "SNOW/SLEET/FREEZING RAIN"       "FREEZING RAIN/SLEET"           
-## [23] "HEAVY RAIN/SEVERE WEATHER"      "RAIN"                          
-## [25] "SNOW/RAIN"                      "BLIZZARD/FREEZING RAIN"        
-## [27] "HEAVY SNOW/FREEZING RAIN"       "THUNDERSTORM WINDS/HEAVY RAIN" 
-## [29] "HVY RAIN"                       "HEAVY RAIN AND FLOOD"          
-## [31] "RAIN AND WIND"                  "EXCESSIVE RAIN"                
-## [33] "SNOW FREEZING RAIN"             "SNOW/FREEZING RAIN"            
-## [35] "TORRENTIAL RAIN"                "FLASH FLOOD - HEAVY RAIN"      
-## [37] "HEAVY SNOW   FREEZING RAIN"     "FREEZING RAIN AND SNOW"        
-## [39] "FREEZING RAIN SLEET AND"        "FLASH FLOOD/HEAVY RAIN"        
-## [41] "HEAVY RAIN; URBAN FLOOD WINDS;" "RAIN/WIND"                     
-## [43] "FREEZING RAIN SLEET AND LIGHT"  "RECORD/EXCESSIVE RAINFALL"     
-## [45] "SLEET & FREEZING RAIN"          "HEAVY RAINS/FLOODING"          
-## [47] "HEAVY RAIN/MUDSLIDES/FLOOD"     "EXCESSIVE RAINFALL"            
-## [49] "HEAVY RAINFALL"                 "THUNDERSTORM WINDS HEAVY RAIN" 
-## [51] "SNOW/SLEET/RAIN"                "FLOOD & HEAVY RAIN"            
-## [53] "HEAVY RAIN/URBAN FLOOD"         "HEAVY RAIN/SMALL STREAM URBAN" 
-## [55] "Heavy Rain"                     "Heavy Rain and Wind"           
-## [57] "Heavy Rain/High Surf"           "Rain Damage"                   
-## [59] "Torrential Rainfall"            "Freezing Rain"                 
-## [61] "HEAVY RAIN/WIND"                "Heavy rain"                    
-## [63] "Gusty wind/rain"                "GUSTY WIND/HVY RAIN"           
-## [65] "Monthly Rainfall"               "SLEET/FREEZING RAIN"           
-## [67] "TSTM HEAVY RAIN"                "RAIN (HEAVY)"                  
-## [69] "Freezing rain"                  "UNSEASONAL RAIN"               
-## [71] "EARLY RAIN"                     "PROLONGED RAIN"                
-## [73] "MONTHLY RAINFALL"               "LIGHT FREEZING RAIN"           
-## [75] "LOCALLY HEAVY RAIN"             "RECORD LOW RAINFALL"           
-## [77] "HEAVY RAIN EFFECTS"
+##   [1] "ACCUMULATED SNOWFALL"           "AGRICULTURAL FREEZE"           
+##   [3] "Black Ice"                      "BLACK ICE"                     
+##   [5] "BLIZZARD AND HEAVY SNOW"        "BLIZZARD/FREEZING RAIN"        
+##   [7] "BLIZZARD/HEAVY SNOW"            "BLIZZARD/WINTER STORM"         
+##   [9] "blowing snow"                   "Blowing Snow"                  
+##  [11] "BLOWING SNOW"                   "BLOWING SNOW- EXTREME WIND CHI"
+##  [13] "BLOWING SNOW & EXTREME WIND CH" "BLOWING SNOW/EXTREME WIND CHIL"
+##  [15] "COLD AND SNOW"                  "Damaging Freeze"               
+##  [17] "DAMAGING FREEZE"                "Drifting Snow"                 
+##  [19] "EARLY FREEZE"                   "EARLY SNOW"                    
+##  [21] "Early snowfall"                 "EARLY SNOWFALL"                
+##  [23] "EXCESSIVE SNOW"                 "FALLING SNOW/ICE"              
+##  [25] "FIRST SNOW"                     "FLASH FLOOD FROM ICE JAMS"     
+##  [27] "Freeze"                         "FREEZE"                        
+##  [29] "Freezing drizzle"               "Freezing Drizzle"              
+##  [31] "FREEZING DRIZZLE"               "FREEZING DRIZZLE AND FREEZING" 
+##  [33] "Freezing Fog"                   "FREEZING FOG"                  
+##  [35] "Freezing rain"                  "Freezing Rain"                 
+##  [37] "FREEZING RAIN"                  "FREEZING RAIN AND SLEET"       
+##  [39] "FREEZING RAIN AND SNOW"         "FREEZING RAIN SLEET AND"       
+##  [41] "FREEZING RAIN SLEET AND LIGHT"  "FREEZING RAIN/SLEET"           
+##  [43] "FREEZING RAIN/SNOW"             "Freezing Spray"                
+##  [45] "Frost/Freeze"                   "FROST/FREEZE"                  
+##  [47] "FROST\\FREEZE"                  "GLAZE ICE"                     
+##  [49] "GLAZE/ICE STORM"                "HAIL/ICY ROADS"                
+##  [51] "HARD FREEZE"                    "HEAVY LAKE SNOW"               
+##  [53] "HEAVY RAIN/SNOW"                "HEAVY SNOW"                    
+##  [55] "HEAVY SNOW-SQUALLS"             "HEAVY SNOW   FREEZING RAIN"    
+##  [57] "HEAVY SNOW & ICE"               "HEAVY SNOW AND"                
+##  [59] "HEAVY SNOW AND HIGH WINDS"      "HEAVY SNOW AND ICE"            
+##  [61] "HEAVY SNOW AND ICE STORM"       "HEAVY SNOW AND STRONG WINDS"   
+##  [63] "HEAVY SNOW ANDBLOWING SNOW"     "Heavy snow shower"             
+##  [65] "HEAVY SNOW SQUALLS"             "HEAVY SNOW/BLIZZARD"           
+##  [67] "HEAVY SNOW/BLIZZARD/AVALANCHE"  "HEAVY SNOW/BLOWING SNOW"       
+##  [69] "HEAVY SNOW/FREEZING RAIN"       "HEAVY SNOW/HIGH"               
+##  [71] "HEAVY SNOW/HIGH WIND"           "HEAVY SNOW/HIGH WINDS"         
+##  [73] "HEAVY SNOW/HIGH WINDS & FLOOD"  "HEAVY SNOW/HIGH WINDS/FREEZING"
+##  [75] "HEAVY SNOW/ICE"                 "HEAVY SNOW/ICE STORM"          
+##  [77] "HEAVY SNOW/SLEET"               "HEAVY SNOW/SQUALLS"            
+##  [79] "HEAVY SNOW/WIND"                "HEAVY SNOW/WINTER STORM"       
+##  [81] "HEAVY SNOWPACK"                 "HEAVY WET SNOW"                
+##  [83] "HIGH WIND AND HEAVY SNOW"       "HIGH WIND/BLIZZARD/FREEZING RA"
+##  [85] "HIGH WIND/HEAVY SNOW"           "HIGH WINDS/SNOW"               
+##  [87] "ICE"                            "ICE AND SNOW"                  
+##  [89] "ICE FLOES"                      "Ice Fog"                       
+##  [91] "ICE JAM"                        "Ice jam flood (minor"          
+##  [93] "ICE JAM FLOODING"               "ICE ON ROAD"                   
+##  [95] "ICE PELLETS"                    "ICE ROADS"                     
+##  [97] "ICE STORM"                      "ICE STORM AND SNOW"            
+##  [99] "ICE STORM/FLASH FLOOD"          "Ice/Snow"                      
+## [101] "ICE/SNOW"                       "ICE/STRONG WINDS"              
+## [103] "Icestorm/Blizzard"              "Icy Roads"                     
+## [105] "ICY ROADS"                      "LACK OF SNOW"                  
+## [107] "LAKE-EFFECT SNOW"               "Lake Effect Snow"              
+## [109] "LAKE EFFECT SNOW"               "Late-season Snowfall"          
+## [111] "LATE FREEZE"                    "LATE SEASON SNOW"              
+## [113] "Late Season Snowfall"           "LATE SNOW"                     
+## [115] "LIGHT FREEZING RAIN"            "Light snow"                    
+## [117] "Light Snow"                     "LIGHT SNOW"                    
+## [119] "LIGHT SNOW AND SLEET"           "Light Snow/Flurries"           
+## [121] "LIGHT SNOW/FREEZING PRECIP"     "Light Snowfall"                
+## [123] "MODERATE SNOW"                  "MODERATE SNOWFALL"             
+## [125] "Monthly Snowfall"               "MONTHLY SNOWFALL"              
+## [127] "Mountain Snows"                 "NEAR RECORD SNOW"              
+## [129] "PATCHY ICE"                     "PROLONG COLD/SNOW"             
+## [131] "RAIN/SNOW"                      "Record May Snow"               
+## [133] "RECORD SNOW"                    "RECORD SNOW/COLD"              
+## [135] "RECORD SNOWFALL"                "Record Winter Snow"            
+## [137] "Seasonal Snowfall"              "SLEET & FREEZING RAIN"         
+## [139] "SLEET/FREEZING RAIN"            "SLEET/ICE STORM"               
+## [141] "SLEET/RAIN/SNOW"                "SLEET/SNOW"                    
+## [143] "Snow"                           "SNOW"                          
+## [145] "SNOW- HIGH WIND- WIND CHILL"    "Snow Accumulation"             
+## [147] "SNOW ACCUMULATION"              "SNOW ADVISORY"                 
+## [149] "SNOW AND COLD"                  "SNOW AND HEAVY SNOW"           
+## [151] "Snow and Ice"                   "SNOW AND ICE"                  
+## [153] "SNOW AND ICE STORM"             "Snow and sleet"                
+## [155] "SNOW AND SLEET"                 "SNOW AND WIND"                 
+## [157] "SNOW DROUGHT"                   "SNOW FREEZING RAIN"            
+## [159] "SNOW SHOWERS"                   "SNOW SLEET"                    
+## [161] "SNOW SQUALL"                    "Snow squalls"                  
+## [163] "Snow Squalls"                   "SNOW SQUALLS"                  
+## [165] "SNOW/ BITTER COLD"              "SNOW/ ICE"                     
+## [167] "SNOW/BLOWING SNOW"              "SNOW/COLD"                     
+## [169] "SNOW/FREEZING RAIN"             "SNOW/HEAVY SNOW"               
+## [171] "SNOW/HIGH WINDS"                "SNOW/ICE"                      
+## [173] "SNOW/ICE STORM"                 "SNOW/RAIN"                     
+## [175] "SNOW/RAIN/SLEET"                "SNOW/SLEET"                    
+## [177] "SNOW/SLEET/FREEZING RAIN"       "SNOW/SLEET/RAIN"               
+## [179] "SNOW\\COLD"                     "SNOWFALL RECORD"               
+## [181] "SNOWMELT FLOODING"              "SNOWSTORM"                     
+## [183] "THUNDERSNOW"                    "Thundersnow shower"            
+## [185] "UNUSUALLY LATE SNOW"            "WET SNOW"                      
+## [187] "WINTER MIX"                     "WINTER STORM"                  
+## [189] "WINTER STORM HIGH WINDS"        "WINTER STORM/HIGH WIND"        
+## [191] "WINTER STORM/HIGH WINDS"        "WINTER STORMS"                 
+## [193] "Winter Weather"                 "WINTER WEATHER"                
+## [195] "WINTER WEATHER MIX"             "WINTER WEATHER/MIX"            
+## [197] "WINTERY MIX"                    "Wintry mix"                    
+## [199] "Wintry Mix"                     "WINTRY MIX"
 ```
 
 
@@ -713,9 +761,8 @@ List the ungrouped unique event types.
 
 
 ```r
-where <- expression(eventWind == FALSE & eventHail == FALSE & eventFlood == 
-    FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & 
-    eventRain == FALSE)
+where <- expression(eventConvection == FALSE & eventExtremeTemp == FALSE & eventFlood == 
+    FALSE & eventWinter == FALSE)
 ungrouped <- D[eval(where), list(n = .N, prop = .N/nrow(D))]
 prop <- D[eval(where), .N/nrow(D)]
 message(sprintf("Number (%%) of records that don't satisfy any one of the defined indicators: %.0d (%.2f%%)", 
@@ -723,7 +770,8 @@ message(sprintf("Number (%%) of records that don't satisfy any one of the define
 ```
 
 ```
-## Number (%) of records that don't satisfy any one of the defined indicators: 35761 (3.96%)
+## Number (%) of records that don't satisfy any one of the defined
+## indicators: 25040 (2.78%)
 ```
 
 ```r
@@ -733,7 +781,8 @@ message(sprintf("Number of unique event types that don't satisfy any one of the 
 ```
 
 ```
-## Number of unique event types that don't satisfy any one of the defined indicators: 383
+## Number of unique event types that don't satisfy any one of the defined
+## indicators: 306
 ```
 
 ```r
@@ -748,191 +797,152 @@ uniqueEvtype[order(uniqueEvtype)]
 ##   [9] "ASTRONOMICAL LOW TIDE"      "AVALANCE"                  
 ##  [11] "AVALANCHE"                  "BEACH EROSIN"              
 ##  [13] "Beach Erosion"              "BEACH EROSION"             
-##  [15] "BELOW NORMAL PRECIPITATION" "BLIZZARD"                  
-##  [17] "Blizzard Summary"           "BLIZZARD WEATHER"          
-##  [19] "BLOW-OUT TIDE"              "BLOW-OUT TIDES"            
-##  [21] "BLOWING DUST"               "BRUSH FIRE"                
-##  [23] "BRUSH FIRES"                "COASTAL EROSION"           
-##  [25] "Coastal Storm"              "COASTAL STORM"             
-##  [27] "COASTAL SURGE"              "COASTALSTORM"              
-##  [29] "Cold"                       "COLD"                      
-##  [31] "COLD AIR FUNNEL"            "COLD AIR FUNNELS"          
-##  [33] "Cold and Frost"             "COLD AND FROST"            
-##  [35] "COLD AND WET CONDITIONS"    "Cold Temperature"          
-##  [37] "COLD TEMPERATURES"          "COLD WAVE"                 
-##  [39] "COLD WEATHER"               "COOL AND WET"              
-##  [41] "COOL SPELL"                 "DAM BREAK"                 
-##  [43] "DAM FAILURE"                "DENSE FOG"                 
-##  [45] "DENSE SMOKE"                "DOWNBURST"                 
-##  [47] "DRIEST MONTH"               "DROUGHT"                   
-##  [49] "DROUGHT/EXCESSIVE HEAT"     "DROWNING"                  
-##  [51] "DRY"                        "DRY CONDITIONS"            
-##  [53] "DRY HOT WEATHER"            "DRY MICROBURST"            
-##  [55] "DRY MICROBURST 50"          "DRY MICROBURST 53"         
-##  [57] "DRY MICROBURST 58"          "DRY MICROBURST 61"         
-##  [59] "DRY MICROBURST 84"          "DRY PATTERN"               
-##  [61] "DRY SPELL"                  "DRY WEATHER"               
-##  [63] "DRYNESS"                    "DUST DEVEL"                
-##  [65] "Dust Devil"                 "DUST DEVIL"                
-##  [67] "DUST DEVIL WATERSPOUT"      "DUST STORM"                
-##  [69] "DUSTSTORM"                  "Early Frost"               
-##  [71] "EARLY FROST"                "EXCESSIVE"                 
-##  [73] "Excessive Cold"             "EXCESSIVE HEAT"            
-##  [75] "EXCESSIVE HEAT/DROUGHT"     "EXCESSIVE PRECIPITATION"   
-##  [77] "EXCESSIVE WETNESS"          "EXCESSIVELY DRY"           
-##  [79] "Extended Cold"              "Extreme Cold"              
-##  [81] "EXTREME COLD"               "EXTREME HEAT"              
-##  [83] "EXTREME/RECORD COLD"        "EXTREMELY WET"             
-##  [85] "FIRST FROST"                "FLASH FLOOODING"           
-##  [87] "FOG"                        "FOG AND COLD TEMPERATURES" 
-##  [89] "FOREST FIRES"               "Frost"                     
-##  [91] "FROST"                      "FUNNEL"                    
-##  [93] "Funnel Cloud"               "FUNNEL CLOUD"              
-##  [95] "FUNNEL CLOUD."              "FUNNEL CLOUDS"             
-##  [97] "FUNNELS"                    "Glaze"                     
-##  [99] "GLAZE"                      "GRASS FIRES"               
-## [101] "GROUND BLIZZARD"            "HAZARDOUS SURF"            
-## [103] "HEAT"                       "HEAT DROUGHT"              
-## [105] "Heat Wave"                  "HEAT WAVE"                 
-## [107] "HEAT WAVE DROUGHT"          "HEAT WAVES"                
-## [109] "HEAT/DROUGHT"               "Heatburst"                 
-## [111] "HEAVY MIX"                  "HEAVY PRECIPATATION"       
-## [113] "Heavy Precipitation"        "HEAVY PRECIPITATION"       
-## [115] "HEAVY SEAS"                 "HEAVY SHOWER"              
-## [117] "HEAVY SHOWERS"              "Heavy Surf"                
-## [119] "HEAVY SURF"                 "HEAVY SURF/HIGH SURF"      
-## [121] "HEAVY SWELLS"               "HIGH"                      
-## [123] "HIGH  SWELLS"               "HIGH SEAS"                 
-## [125] "High Surf"                  "HIGH SURF"                 
-## [127] "HIGH SURF ADVISORIES"       "HIGH SURF ADVISORY"        
-## [129] "HIGH SWELLS"                "HIGH TEMPERATURE RECORD"   
-## [131] "HIGH TIDES"                 "HIGH WATER"                
-## [133] "HIGH WAVES"                 "Hot and Dry"               
-## [135] "HOT PATTERN"                "HOT SPELL"                 
-## [137] "HOT WEATHER"                "HOT/DRY PATTERN"           
-## [139] "HURRICANE"                  "HURRICANE-GENERATED SWELLS"
-## [141] "Hurricane Edouard"          "HURRICANE EMILY"           
-## [143] "HURRICANE ERIN"             "HURRICANE FELIX"           
-## [145] "HURRICANE GORDON"           "HURRICANE OPAL"            
-## [147] "HURRICANE/TYPHOON"          "HYPERTHERMIA/EXPOSURE"     
-## [149] "HYPOTHERMIA"                "Hypothermia/Exposure"      
-## [151] "HYPOTHERMIA/EXPOSURE"       "LANDSLIDE"                 
-## [153] "LANDSLIDES"                 "Landslump"                 
-## [155] "LANDSLUMP"                  "LANDSPOUT"                 
-## [157] "LARGE WALL CLOUD"           "LOW TEMPERATURE"           
-## [159] "LOW TEMPERATURE RECORD"     "Marine Accident"           
-## [161] "MARINE MISHAP"              "Metro Storm, May 26"       
-## [163] "Microburst"                 "MICROBURST"                
-## [165] "Mild and Dry Pattern"       "MILD PATTERN"              
-## [167] "MILD/DRY PATTERN"           "MIXED PRECIP"              
-## [169] "Mixed Precipitation"        "MIXED PRECIPITATION"       
-## [171] "MONTHLY PRECIPITATION"      "MONTHLY TEMPERATURE"       
-## [173] "MUD SLIDE"                  "MUD SLIDES"                
-## [175] "MUD/ROCK SLIDE"             "Mudslide"                  
-## [177] "MUDSLIDE"                   "MUDSLIDE/LANDSLIDE"        
-## [179] "Mudslides"                  "MUDSLIDES"                 
-## [181] "No Severe Weather"          "NONE"                      
-## [183] "NORMAL PRECIPITATION"       "NORTHERN LIGHTS"           
-## [185] "Other"                      "OTHER"                     
-## [187] "PATCHY DENSE FOG"           "Prolong Cold"              
-## [189] "PROLONG COLD"               "PROLONG WARMTH"            
-## [191] "RAPIDLY RISING WATER"       "RECORD  COLD"              
-## [193] "Record Cold"                "RECORD COLD"               
-## [195] "RECORD COLD/FROST"          "RECORD COOL"               
-## [197] "Record dry month"           "RECORD DRYNESS"            
-## [199] "Record Heat"                "RECORD HEAT"               
-## [201] "RECORD HEAT WAVE"           "Record High"               
-## [203] "RECORD HIGH"                "RECORD HIGH TEMPERATURE"   
-## [205] "RECORD HIGH TEMPERATURES"   "RECORD LOW"                
-## [207] "RECORD PRECIPITATION"       "Record temperature"        
-## [209] "RECORD TEMPERATURE"         "Record Temperatures"       
-## [211] "RECORD TEMPERATURES"        "RECORD WARM"               
-## [213] "RECORD WARM TEMPS."         "Record Warmth"             
-## [215] "RECORD WARMTH"              "RECORD/EXCESSIVE HEAT"     
-## [217] "RED FLAG CRITERIA"          "RED FLAG FIRE WX"          
-## [219] "REMNANTS OF FLOYD"          "RIP CURRENT"               
-## [221] "RIP CURRENTS"               "RIP CURRENTS HEAVY SURF"   
-## [223] "RIP CURRENTS/HEAVY SURF"    "ROCK SLIDE"                
-## [225] "ROGUE WAVE"                 "ROTATING WALL CLOUD"       
-## [227] "ROUGH SEAS"                 "ROUGH SURF"                
-## [229] "Saharan Dust"               "SAHARAN DUST"              
-## [231] "SEICHE"                     "SEVERE COLD"               
-## [233] "SEVERE THUNDERSTORM"        "SEVERE THUNDERSTORMS"      
-## [235] "SEVERE TURBULENCE"          "SLEET"                     
-## [237] "SLEET STORM"                "SMALL STREAM"              
-## [239] "SMALL STREAM AND"           "Sml Stream Fld"            
-## [241] "SMOKE"                      "SOUTHEAST"                 
-## [243] "STORM SURGE"                "STORM SURGE/TIDE"          
-## [245] "Summary August 10"          "Summary August 11"         
-## [247] "Summary August 17"          "Summary August 2-3"        
-## [249] "Summary August 21"          "Summary August 28"         
-## [251] "Summary August 4"           "Summary August 7"          
-## [253] "Summary August 9"           "Summary Jan 17"            
-## [255] "Summary July 23-24"         "Summary June 18-19"        
-## [257] "Summary June 5-6"           "Summary June 6"            
-## [259] "Summary of April 12"        "Summary of April 13"       
-## [261] "Summary of April 21"        "Summary of April 27"       
-## [263] "Summary of April 3rd"       "Summary of August 1"       
-## [265] "Summary of July 11"         "Summary of July 2"         
-## [267] "Summary of July 22"         "Summary of July 26"        
-## [269] "Summary of July 29"         "Summary of July 3"         
-## [271] "Summary of June 10"         "Summary of June 11"        
-## [273] "Summary of June 12"         "Summary of June 13"        
-## [275] "Summary of June 15"         "Summary of June 16"        
-## [277] "Summary of June 18"         "Summary of June 23"        
-## [279] "Summary of June 24"         "Summary of June 3"         
-## [281] "Summary of June 30"         "Summary of June 4"         
-## [283] "Summary of June 6"          "Summary of March 14"       
-## [285] "Summary of March 23"        "Summary of March 24"       
-## [287] "SUMMARY OF MARCH 24-25"     "SUMMARY OF MARCH 27"       
-## [289] "SUMMARY OF MARCH 29"        "Summary of May 10"         
-## [291] "Summary of May 13"          "Summary of May 14"         
-## [293] "Summary of May 22"          "Summary of May 22 am"      
-## [295] "Summary of May 22 pm"       "Summary of May 26 am"      
-## [297] "Summary of May 26 pm"       "Summary of May 31 am"      
-## [299] "Summary of May 31 pm"       "Summary of May 9-10"       
-## [301] "Summary Sept. 25-26"        "Summary September 20"      
-## [303] "Summary September 23"       "Summary September 3"       
-## [305] "Summary September 4"        "Summary: Nov. 16"          
-## [307] "Summary: Nov. 6-7"          "Summary: Oct. 20-21"       
-## [309] "Summary: October 31"        "Summary: Sept. 18"         
-## [311] "Temperature record"         "THUNDERSTORM"              
-## [313] "THUNDERSTORM DAMAGE"        "THUNDERSTORM DAMAGE TO"    
-## [315] "THUNDERSTORM W INDS"        "THUNDERSTORM WINS"         
-## [317] "THUNDERSTORMS"              "THUNDERSTORMW"             
-## [319] "THUNDERSTORMW 50"           "TROPICAL DEPRESSION"       
-## [321] "TROPICAL STORM"             "TROPICAL STORM ALBERTO"    
-## [323] "TROPICAL STORM DEAN"        "TROPICAL STORM GORDON"     
-## [325] "TROPICAL STORM JERRY"       "TSTM"                      
-## [327] "TSTMW"                      "TSUNAMI"                   
-## [329] "TYPHOON"                    "Unseasonable Cold"         
-## [331] "UNSEASONABLY COLD"          "UNSEASONABLY COOL"         
-## [333] "UNSEASONABLY COOL & WET"    "UNSEASONABLY DRY"          
-## [335] "UNSEASONABLY HOT"           "UNSEASONABLY WARM"         
-## [337] "UNSEASONABLY WARM & WET"    "UNSEASONABLY WARM AND DRY" 
-## [339] "UNSEASONABLY WARM YEAR"     "UNSEASONABLY WARM/WET"     
-## [341] "UNSEASONABLY WET"           "UNSEASONAL LOW TEMP"       
-## [343] "UNUSUAL WARMTH"             "UNUSUAL/RECORD WARMTH"     
-## [345] "UNUSUALLY COLD"             "UNUSUALLY WARM"            
-## [347] "URBAN AND SMALL"            "URBAN AND SMALL STREAM"    
-## [349] "URBAN SMALL"                "URBAN/SMALL"               
-## [351] "URBAN/SMALL STREAM"         "URBAN/SMALL STRM FLDG"     
-## [353] "URBAN/SML STREAM FLD"       "URBAN/SML STREAM FLDG"     
-## [355] "VERY DRY"                   "VERY WARM"                 
-## [357] "VOG"                        "Volcanic Ash"              
-## [359] "VOLCANIC ASH"               "Volcanic Ash Plume"        
-## [361] "VOLCANIC ASHFALL"           "VOLCANIC ERUPTION"         
-## [363] "WALL CLOUD"                 "WALL CLOUD/FUNNEL CLOUD"   
-## [365] "WARM DRY CONDITIONS"        "WARM WEATHER"              
-## [367] "WATER SPOUT"                "WATERSPOUT"                
-## [369] "WATERSPOUT-"                "WATERSPOUT FUNNEL CLOUD"   
-## [371] "WATERSPOUT/"                "WATERSPOUTS"               
-## [373] "WAYTERSPOUT"                "wet micoburst"             
-## [375] "WET MICROBURST"             "Wet Month"                 
-## [377] "WET WEATHER"                "Wet Year"                  
-## [379] "WILD FIRES"                 "WILD/FOREST FIRE"          
-## [381] "WILD/FOREST FIRES"          "WILDFIRE"                  
-## [383] "WILDFIRES"
+##  [15] "BLIZZARD"                   "Blizzard Summary"          
+##  [17] "BLIZZARD WEATHER"           "BLOW-OUT TIDE"             
+##  [19] "BLOW-OUT TIDES"             "BLOWING DUST"              
+##  [21] "BRUSH FIRE"                 "BRUSH FIRES"               
+##  [23] "COASTAL EROSION"            "Coastal Storm"             
+##  [25] "COASTAL STORM"              "COASTAL SURGE"             
+##  [27] "COASTALFLOOD"               "COASTALSTORM"              
+##  [29] "COOL AND WET"               "COOL SPELL"                
+##  [31] "DAM BREAK"                  "DAM FAILURE"               
+##  [33] "DENSE FOG"                  "DENSE SMOKE"               
+##  [35] "DOWNBURST"                  "DRIEST MONTH"              
+##  [37] "DROUGHT"                    "DROWNING"                  
+##  [39] "DRY"                        "DRY CONDITIONS"            
+##  [41] "DRY HOT WEATHER"            "DRY MICROBURST"            
+##  [43] "DRY MICROBURST 50"          "DRY MICROBURST 53"         
+##  [45] "DRY MICROBURST 58"          "DRY MICROBURST 61"         
+##  [47] "DRY MICROBURST 84"          "DRY PATTERN"               
+##  [49] "DRY SPELL"                  "DRY WEATHER"               
+##  [51] "DRYNESS"                    "DUST DEVEL"                
+##  [53] "Dust Devil"                 "DUST DEVIL"                
+##  [55] "DUST DEVIL WATERSPOUT"      "DUST STORM"                
+##  [57] "DUSTSTORM"                  "Early Frost"               
+##  [59] "EARLY FROST"                "EXCESSIVE"                 
+##  [61] "EXCESSIVE WETNESS"          "EXCESSIVELY DRY"           
+##  [63] "EXTREMELY WET"              "FIRST FROST"               
+##  [65] "FOG"                        "FOREST FIRES"              
+##  [67] "Frost"                      "FROST"                     
+##  [69] "Glaze"                      "GLAZE"                     
+##  [71] "GRASS FIRES"                "GROUND BLIZZARD"           
+##  [73] "HAZARDOUS SURF"             "HEAVY MIX"                 
+##  [75] "HEAVY SEAS"                 "Heavy Surf"                
+##  [77] "HEAVY SURF"                 "HEAVY SURF/HIGH SURF"      
+##  [79] "HEAVY SWELLS"               "HIGH"                      
+##  [81] "HIGH  SWELLS"               "HIGH SEAS"                 
+##  [83] "High Surf"                  "HIGH SURF"                 
+##  [85] "HIGH SURF ADVISORIES"       "HIGH SURF ADVISORY"        
+##  [87] "HIGH SWELLS"                "HIGH TEMPERATURE RECORD"   
+##  [89] "HIGH TIDES"                 "HIGH WATER"                
+##  [91] "HIGH WAVES"                 "Hot and Dry"               
+##  [93] "HOT PATTERN"                "HOT SPELL"                 
+##  [95] "HOT WEATHER"                "HOT/DRY PATTERN"           
+##  [97] "HURRICANE"                  "HURRICANE-GENERATED SWELLS"
+##  [99] "Hurricane Edouard"          "HURRICANE EMILY"           
+## [101] "HURRICANE ERIN"             "HURRICANE FELIX"           
+## [103] "HURRICANE GORDON"           "HURRICANE OPAL"            
+## [105] "HURRICANE/TYPHOON"          "HYPERTHERMIA/EXPOSURE"     
+## [107] "HYPOTHERMIA"                "Hypothermia/Exposure"      
+## [109] "HYPOTHERMIA/EXPOSURE"       "LANDSLIDE"                 
+## [111] "LANDSLIDES"                 "Landslump"                 
+## [113] "LANDSLUMP"                  "LANDSPOUT"                 
+## [115] "LARGE WALL CLOUD"           "LOW TEMPERATURE"           
+## [117] "LOW TEMPERATURE RECORD"     "Marine Accident"           
+## [119] "MARINE MISHAP"              "Metro Storm, May 26"       
+## [121] "Microburst"                 "MICROBURST"                
+## [123] "Mild and Dry Pattern"       "MILD PATTERN"              
+## [125] "MILD/DRY PATTERN"           "MONTHLY TEMPERATURE"       
+## [127] "MUD SLIDE"                  "MUD SLIDES"                
+## [129] "MUD/ROCK SLIDE"             "Mudslide"                  
+## [131] "MUDSLIDE"                   "MUDSLIDE/LANDSLIDE"        
+## [133] "Mudslides"                  "MUDSLIDES"                 
+## [135] "No Severe Weather"          "NONE"                      
+## [137] "NORTHERN LIGHTS"            "Other"                     
+## [139] "OTHER"                      "PATCHY DENSE FOG"          
+## [141] "PROLONG WARMTH"             "RAPIDLY RISING WATER"      
+## [143] "RECORD COOL"                "Record dry month"          
+## [145] "RECORD DRYNESS"             "Record High"               
+## [147] "RECORD HIGH"                "RECORD HIGH TEMPERATURE"   
+## [149] "RECORD HIGH TEMPERATURES"   "RECORD LOW"                
+## [151] "Record temperature"         "RECORD TEMPERATURE"        
+## [153] "Record Temperatures"        "RECORD TEMPERATURES"       
+## [155] "RECORD WARM"                "RECORD WARM TEMPS."        
+## [157] "Record Warmth"              "RECORD WARMTH"             
+## [159] "RED FLAG CRITERIA"          "RED FLAG FIRE WX"          
+## [161] "RIP CURRENT"                "RIP CURRENTS"              
+## [163] "RIP CURRENTS HEAVY SURF"    "RIP CURRENTS/HEAVY SURF"   
+## [165] "ROCK SLIDE"                 "ROGUE WAVE"                
+## [167] "ROTATING WALL CLOUD"        "ROUGH SEAS"                
+## [169] "ROUGH SURF"                 "Saharan Dust"              
+## [171] "SAHARAN DUST"               "SEICHE"                    
+## [173] "SEVERE TURBULENCE"          "SLEET"                     
+## [175] "SLEET STORM"                "SMALL STREAM"              
+## [177] "SMALL STREAM AND"           "Sml Stream Fld"            
+## [179] "SMOKE"                      "SOUTHEAST"                 
+## [181] "STORM SURGE"                "STORM SURGE/TIDE"          
+## [183] "Summary August 10"          "Summary August 11"         
+## [185] "Summary August 17"          "Summary August 2-3"        
+## [187] "Summary August 21"          "Summary August 28"         
+## [189] "Summary August 4"           "Summary August 7"          
+## [191] "Summary August 9"           "Summary Jan 17"            
+## [193] "Summary July 23-24"         "Summary June 18-19"        
+## [195] "Summary June 5-6"           "Summary June 6"            
+## [197] "Summary of April 12"        "Summary of April 13"       
+## [199] "Summary of April 21"        "Summary of April 27"       
+## [201] "Summary of April 3rd"       "Summary of August 1"       
+## [203] "Summary of July 11"         "Summary of July 2"         
+## [205] "Summary of July 22"         "Summary of July 26"        
+## [207] "Summary of July 29"         "Summary of July 3"         
+## [209] "Summary of June 10"         "Summary of June 11"        
+## [211] "Summary of June 12"         "Summary of June 13"        
+## [213] "Summary of June 15"         "Summary of June 16"        
+## [215] "Summary of June 18"         "Summary of June 23"        
+## [217] "Summary of June 24"         "Summary of June 3"         
+## [219] "Summary of June 30"         "Summary of June 4"         
+## [221] "Summary of June 6"          "Summary of March 14"       
+## [223] "Summary of March 23"        "Summary of March 24"       
+## [225] "SUMMARY OF MARCH 24-25"     "SUMMARY OF MARCH 27"       
+## [227] "SUMMARY OF MARCH 29"        "Summary of May 10"         
+## [229] "Summary of May 13"          "Summary of May 14"         
+## [231] "Summary of May 22"          "Summary of May 22 am"      
+## [233] "Summary of May 22 pm"       "Summary of May 26 am"      
+## [235] "Summary of May 26 pm"       "Summary of May 31 am"      
+## [237] "Summary of May 31 pm"       "Summary of May 9-10"       
+## [239] "Summary Sept. 25-26"        "Summary September 20"      
+## [241] "Summary September 23"       "Summary September 3"       
+## [243] "Summary September 4"        "Summary: Nov. 16"          
+## [245] "Summary: Nov. 6-7"          "Summary: Oct. 20-21"       
+## [247] "Summary: October 31"        "Summary: Sept. 18"         
+## [249] "Temperature record"         "TROPICAL DEPRESSION"       
+## [251] "TROPICAL STORM"             "TROPICAL STORM ALBERTO"    
+## [253] "TROPICAL STORM DEAN"        "TROPICAL STORM GORDON"     
+## [255] "TROPICAL STORM JERRY"       "TSUNAMI"                   
+## [257] "TYPHOON"                    "UNSEASONABLY COOL"         
+## [259] "UNSEASONABLY COOL & WET"    "UNSEASONABLY DRY"          
+## [261] "UNSEASONABLY HOT"           "UNSEASONABLY WARM"         
+## [263] "UNSEASONABLY WARM & WET"    "UNSEASONABLY WARM AND DRY" 
+## [265] "UNSEASONABLY WARM YEAR"     "UNSEASONABLY WARM/WET"     
+## [267] "UNSEASONABLY WET"           "UNSEASONAL LOW TEMP"       
+## [269] "UNUSUAL WARMTH"             "UNUSUAL/RECORD WARMTH"     
+## [271] "UNUSUALLY WARM"             "URBAN AND SMALL"           
+## [273] "URBAN AND SMALL STREAM"     "URBAN SMALL"               
+## [275] "URBAN/SMALL"                "URBAN/SMALL STREAM"        
+## [277] "URBAN/SMALL STRM FLDG"      "URBAN/SML STREAM FLD"      
+## [279] "URBAN/SML STREAM FLDG"      "VERY DRY"                  
+## [281] "VERY WARM"                  "VOG"                       
+## [283] "Volcanic Ash"               "VOLCANIC ASH"              
+## [285] "Volcanic Ash Plume"         "VOLCANIC ASHFALL"          
+## [287] "VOLCANIC ERUPTION"          "WALL CLOUD"                
+## [289] "WARM DRY CONDITIONS"        "WARM WEATHER"              
+## [291] "WATER SPOUT"                "WATERSPOUT"                
+## [293] "WATERSPOUT-"                "WATERSPOUT/"               
+## [295] "WATERSPOUTS"                "WAYTERSPOUT"               
+## [297] "wet micoburst"              "WET MICROBURST"            
+## [299] "Wet Month"                  "WET WEATHER"               
+## [301] "Wet Year"                   "WILD FIRES"                
+## [303] "WILD/FOREST FIRE"           "WILD/FOREST FIRES"         
+## [305] "WILDFIRE"                   "WILDFIRES"
 ```
 
 
@@ -940,9 +950,8 @@ Create an **Other** indicator for ungrouped event types.
 
 
 ```r
-D <- D[, `:=`(eventOther, eventWind == FALSE & eventHail == FALSE & eventFlood == 
-    FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & 
-    eventRain == FALSE)]
+D <- D[, `:=`(eventOther, eventConvection == FALSE & eventExtremeTemp == FALSE & 
+    eventFlood == FALSE & eventWinter == FALSE)]
 ```
 
 
@@ -955,24 +964,76 @@ A crosstabulation for these events is below.
 
 
 ```r
-groupby <- expression(list(eventWind, eventHail, eventTornado, eventFlood))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, 
-    decreasing = TRUE)]
+groupby <- expression(list(eventConvection, eventExtremeTemp, eventFlood, eventWinter, 
+    eventOther))
+D[, .N, eval(groupby)][order(eventConvection, eventExtremeTemp, eventFlood, 
+    eventWinter, eventOther, decreasing = TRUE)]
 ```
 
 ```
-##    eventWind eventHail eventTornado eventFlood      N
-## 1:      TRUE      TRUE         TRUE      FALSE      1
-## 2:      TRUE      TRUE        FALSE      FALSE   1123
-## 3:      TRUE     FALSE        FALSE       TRUE     18
-## 4:      TRUE     FALSE        FALSE      FALSE 363761
-## 5:     FALSE      TRUE        FALSE       TRUE      1
-## 6:     FALSE      TRUE        FALSE      FALSE 289276
-## 7:     FALSE     FALSE         TRUE      FALSE  60707
-## 8:     FALSE     FALSE        FALSE       TRUE  82712
-## 9:     FALSE     FALSE        FALSE      FALSE 104698
+##     eventConvection eventExtremeTemp eventFlood eventWinter eventOther
+##  1:            TRUE             TRUE      FALSE       FALSE      FALSE
+##  2:            TRUE            FALSE       TRUE        TRUE      FALSE
+##  3:            TRUE            FALSE       TRUE       FALSE      FALSE
+##  4:            TRUE            FALSE      FALSE        TRUE      FALSE
+##  5:            TRUE            FALSE      FALSE       FALSE      FALSE
+##  6:           FALSE             TRUE      FALSE        TRUE      FALSE
+##  7:           FALSE             TRUE      FALSE       FALSE      FALSE
+##  8:           FALSE            FALSE       TRUE        TRUE      FALSE
+##  9:           FALSE            FALSE       TRUE       FALSE      FALSE
+## 10:           FALSE            FALSE      FALSE        TRUE      FALSE
+## 11:           FALSE            FALSE      FALSE       FALSE       TRUE
+##          N
+##  1:   1561
+##  2:      1
+##  3:     41
+##  4:     28
+##  5: 736109
+##  6:      9
+##  7:   3541
+##  8:    371
+##  9:  94639
+## 10:  40957
+## 11:  25040
 ```
 
+
+#### Categorize event types
+
+Now that event types are grouped, set up a categorization hierarchy of event
+types.
+The hierarchy is needed because records can have multiple events listed in the
+`evtype` variable.
+E.g., *THUNDERSTORM WINDS/FLASH FLOOD*.
+
+The hierarchy is as follows.
+
+1. Convection (including lightning, tornado, thunderstorm, wind, and hail)
+2. Extreme temperature (including hot and cold)
+3. Flood (including flood, flash flood, rain)
+4. Winter (including snow, ice, freeze, or winter weather)
+5. Other
+
+Under this categorization hierarchy, the example event type of *THUNDERSTORM
+WINDS/FLASH FLOOD* would be assigned to the *Convection* category.
+
+
+```r
+D <- D[, `:=`(eventCategory, ifelse(eventConvection, 1, ifelse(eventExtremeTemp, 
+    2, ifelse(eventFlood, 3, ifelse(eventWinter, 4, ifelse(eventOther, 5, NA))))))]
+labels <- c("Convection", "Extreme temperature", "Flood", "Winter", "Other")
+D <- D[, `:=`(eventCategory, factor(eventCategory, labels = labels))]
+D[, .N, eventCategory]
+```
+
+```
+##          eventCategory      N
+## 1:          Convection 737740
+## 2:               Flood  95010
+## 3:              Winter  40957
+## 4: Extreme temperature   3550
+## 5:               Other  25040
+```
 
 
 
@@ -999,4 +1060,92 @@ D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood,
 > plots in them (i.e. panel plots), but there cannot be more than three figures
 > total.
 > 
+
+### Outcomes
+
+The following outcomes are reported.
+
+* Total number of fatalities
+* Total number of injuries
+* Property damage, in terms of dollars
+
+
+### By event category
+
+Tabulate the outcomes by event type category.
+
+
+```r
+select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), 
+    propertyDamage = sum(propdmg)))
+groupby <- expression(list(eventCategory))
+tabEventCategory <- D[, eval(select), eval(groupby)]
+tabEventCategory <- tabEventCategory[order(eventCategory)]
+```
+
+
+Show the tabulation.
+
+
+```r
+print(xtable(tabEventCategory, digits = 0), type = "html", include.rownames = FALSE)
+```
+
+<!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
+<!-- Sun May 18 07:50:35 2014 -->
+<TABLE border=1>
+<TR> <TH> eventCategory </TH> <TH> numberEvents </TH> <TH> fatalities </TH> <TH> injuries </TH> <TH> propertyDamage </TH>  </TR>
+  <TR> <TD> Convection </TD> <TD align="right"> 737740 </TD> <TD align="right"> 7920 </TD> <TD align="right"> 109550 </TD> <TD align="right"> 7645872 </TD> </TR>
+  <TR> <TD> Extreme temperature </TD> <TD align="right"> 3550 </TD> <TD align="right"> 3368 </TD> <TD align="right"> 9504 </TD> <TD align="right"> 13150 </TD> </TR>
+  <TR> <TD> Flood </TD> <TD align="right"> 95010 </TD> <TD align="right"> 1639 </TD> <TD align="right"> 8937 </TD> <TD align="right"> 2494784 </TD> </TR>
+  <TR> <TD> Winter </TD> <TD align="right"> 40957 </TD> <TD align="right"> 528 </TD> <TD align="right"> 5270 </TD> <TD align="right"> 377444 </TD> </TR>
+  <TR> <TD> Other </TD> <TD align="right"> 25040 </TD> <TD align="right"> 1690 </TD> <TD align="right"> 7267 </TD> <TD align="right"> 353250 </TD> </TR>
+   </TABLE>
+
+
+
+### By event category and year
+
+Tabulate the outcomes by event type category and year.
+
+
+```r
+select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), 
+    propertyDamage = sum(propdmg)))
+groupby <- expression(list(eventCategory, year(beginDate)))
+tabEventCategoryYear <- D[, eval(select), eval(groupby)]
+tabEventCategoryYear <- tabEventCategoryYear[order(eventCategory, year)]
+```
+
+
+Plot the data.
+
+
+```r
+ggplot(tabEventCategoryYear, aes(x = year, y = fatalities, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = "Category", palette = "Set1") + 
+    labs(title = "Fatalities", x = "Year", y = "Number") + theme(legend.position = "bottom")
+```
+
+![plot of chunk fatalities](figure/fatalities.png) 
+
+
+
+```r
+ggplot(tabEventCategoryYear, aes(x = year, y = injuries, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = "Category", palette = "Set1") + 
+    labs(title = "Injuries", x = "Year", y = "Number") + theme(legend.position = "bottom")
+```
+
+![plot of chunk injuries](figure/injuries.png) 
+
+
+
+```r
+ggplot(tabEventCategoryYear, aes(x = year, y = propertyDamage/1000, color = eventCategory)) + 
+    geom_line() + scale_color_brewer(name = "Category", palette = "Set1") + 
+    labs(title = "Property damage", x = "Year", y = "$ (thousands)") + theme(legend.position = "bottom")
+```
+
+![plot of chunk propertydamage](figure/propertydamage.png) 
 

@@ -77,7 +77,7 @@ download.file(url, f, mode="wb")
 Unzip the data file.
 
 ```{r, eval=FALSE}
-executable <- file.path("C:", "Program Files (x86)", "7-Zip", "7z.exe")
+executable <- file.path("C:", "Program Files", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
 cmd <- paste(paste0("\"", executable, "\""), parameters, paste0("\"", f, "\""), switch)
@@ -88,10 +88,11 @@ system(cmd)
 
 ### Read data file
 
+The data file (CSV format) is in the working directory.
 Read the CSV file as a data frame.
 Then convert to a data table.
 
-```{r}
+```{r, cache=TRUE}
 f <- file.path(getwd(), "StormData.csv.bz2")
 D <- read.csv(f, stringsAsFactors=FALSE)
 D <- data.table(D)
@@ -130,6 +131,7 @@ Scale the property damage variable into a new variable, `propertyDamage`.
 
 ```{r}
 D <- D[, propdmgexp := toupper(propdmgexp)]
+D[, .N, propdmgexp]
 D <- D[, propertyDamage := ifelse(propdmgexp == "B", propdmg * 1E9, ifelse(propdmgexp == "M", propdmg * 1E6, ifelse(propdmgexp == "K", propdmg * 1E3, ifelse(propdmgexp == "H", propdmg * 1E2, propdmg))))]
 summary(D$propertyDamage)
 ```
@@ -143,6 +145,7 @@ Scale the crop damage variable into a new variable, `cropDamage`.
 
 ```{r}
 D <- D[, cropdmgexp := toupper(cropdmgexp)]
+D[, .N, cropdmgexp]
 D <- D[, cropDamage := ifelse(cropdmgexp == "B", cropdmg * 1E9, ifelse(cropdmgexp == "M", cropdmg * 1E6, ifelse(cropdmgexp == "K", cropdmg * 1E3, cropdmg)))]
 summary(D$cropDamage)
 ```
@@ -181,45 +184,37 @@ These fall into the top-level category of **Convection**.
 ```{r}
 regexLightning <- "\\bL\\S+?G\\b"
 regexTornado <- "(NADO)|(\\bTOR\\S+?O\\b|(\\bFUN))"
-regexThunderstormWind <- "(WIND)|(WND)"
+regexThunderstorm <- "THUNDERSTORM|TSTM"
+regexWind <- "(WIND)|(WND)"
 regexHail <- "HAIL"
-D <- D[, eventConvection := indicator(paste(regexLightning, regexTornado, regexThunderstormWind, regexHail, sep="|"))]
+regex <- paste(regexLightning, regexTornado, regexThunderstorm, regexWind, regexHail, sep="|")
+D <- D[, eventConvection := indicator(regex)]
 ```
 
 Create an indicators for variations of **Cold** and **Heat**.
 These fall into the top-level category of **Extreme Temperatures**.
 
 ```{r}
-regex <- "COLD"
-D <- D[, eventCold := indicator(regex)]
-regex <- "HEAT"
-D <- D[, eventHeat := indicator(regex)]
-D <- D[, eventExtremeTemp := eventCold == TRUE | eventHeat == TRUE]
+regex <- "COLD|HEAT"
+D <- D[, eventExtremeTemp := indicator(regex)]
 ```
 
-Create an indicators for variations of **Flash Flood** and **River Flood**.
+Create an indicators for variations of **Flood** and **Rain**.
 These fall into the top-level category of **Flood**.
 
 ```{r}
-regex <- "FLASH"
-D <- D[, eventFlashFlood := indicator(regex)]
-regex <- "(\\bFLO\\S+?OD\\b)"
-D <- D[, eventRiverFlood := indicator(regex) & eventFlashFlood == FALSE]
-D <- D[, eventFlood := eventFlashFlood == TRUE | eventRiverFlood == TRUE]
+regexFlood <- "(\\bFL\\S+?D)"
+regexRain <- "RAIN|PRECIP|SHOWER"
+regex <- paste(regexFlood, regexRain, sep="|")
+D <- D[, eventFlood := indicator(regex)]
 ```
 
-Create an indicator for variations of **Snow, Ice, Freeze, or Winter Weather**.
+Create an indicator for variations of **Snow**, **Ice**, **Freeze**, or **Winter Weather**.
+These fall into the top-level category of **Winter**.
 
 ```{r}
 regex <- "(SNOW)|(ICE)|(ICY)|(FREEZ)|(WINT)"
-D <- D[, eventSnow := indicator(regex)]
-```
-
-Create an indicator for variations of **Rain**.
-
-```{r}
-regex <- "RAIN"
-D <- D[, eventRain := indicator(regex)]
+D <- D[, eventWinter := indicator(regex)]
 ```
 
 Calculate the proportion of records that don't satisfy any one of the defined indicators.
@@ -227,7 +222,7 @@ Calculate the number of unique event types among these records.
 List the ungrouped unique event types.
 
 ```{r}
-where <- expression(eventWind == FALSE & eventHail == FALSE & eventFlood == FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & eventRain == FALSE)
+where <- expression(eventConvection == FALSE & eventExtremeTemp == FALSE & eventFlood == FALSE & eventWinter == FALSE)
 ungrouped <- D[eval(where), list(n = .N, prop = .N / nrow(D))]
 prop <- D[eval(where), .N / nrow(D)]
 message(sprintf("Number (%%) of records that don't satisfy any one of the defined indicators: %.0d (%.2f%%)", ungrouped$n, ungrouped$prop * 100))
@@ -239,7 +234,7 @@ uniqueEvtype[order(uniqueEvtype)]
 Create an **Other** indicator for ungrouped event types.
 
 ```{r}
-D <- D[, eventOther := eventWind == FALSE & eventHail == FALSE & eventFlood == FALSE & eventTornado == FALSE & eventLightning == FALSE & eventSnow == FALSE & eventRain == FALSE]
+D <- D[, eventOther := eventConvection == FALSE & eventExtremeTemp == FALSE & eventFlood == FALSE & eventWinter == FALSE]
 ```
 
 According to the [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf), 
@@ -250,10 +245,35 @@ According to the [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc
 A crosstabulation for these events is below.
 
 ```{r}
-groupby <- expression(list(eventWind, eventHail, eventTornado, eventFlood))
-D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, decreasing=TRUE)]
+groupby <- expression(list(eventConvection, eventExtremeTemp, eventFlood, eventWinter, eventOther))
+D[, .N, eval(groupby)][order(eventConvection, eventExtremeTemp, eventFlood, eventWinter, eventOther, decreasing=TRUE)]
 ```
 
+#### Categorize event types
+
+Now that event types are grouped, set up a categorization hierarchy of event
+types.
+The hierarchy is needed because records can have multiple events listed in the
+`evtype` variable.
+E.g., *THUNDERSTORM WINDS/FLASH FLOOD*.
+
+The hierarchy is as follows.
+
+1. Convection (including lightning, tornado, thunderstorm, wind, and hail)
+2. Extreme temperature (including hot and cold)
+3. Flood (including flood, flash flood, rain)
+4. Winter (including snow, ice, freeze, or winter weather)
+5. Other
+
+Under this categorization hierarchy, the example event type of *THUNDERSTORM
+WINDS/FLASH FLOOD* would be assigned to the *Convection* category.
+
+```{r}
+D <- D[, eventCategory := ifelse(eventConvection, 1, ifelse(eventExtremeTemp, 2, ifelse(eventFlood, 3, ifelse(eventWinter, 4, ifelse(eventOther, 5, NA)))))]
+labels <- c("Convection", "Extreme temperature", "Flood", "Winter", "Other")
+D <- D[, eventCategory := factor(eventCategory, labels=labels)]
+D[, .N, eventCategory]
+```
 
 
 ## Results
@@ -280,3 +300,66 @@ D[, .N, eval(groupby)][order(eventWind, eventHail, eventTornado, eventFlood, dec
 > total.
 > 
 
+### Outcomes
+
+The following outcomes are reported.
+
+* Total number of fatalities
+* Total number of injuries
+* Property damage, in terms of dollars
+
+
+### By event category
+
+Tabulate the outcomes by event type category.
+
+```{r}
+select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), propertyDamage = sum(propdmg)))
+groupby <- expression(list(eventCategory))
+tabEventCategory <- D[, eval(select), eval(groupby)]
+tabEventCategory <- tabEventCategory[order(eventCategory)]
+```
+
+Show the tabulation.
+
+```{r, results='asis'}
+print(xtable(tabEventCategory, digits=0), type="html", include.rownames=FALSE)
+```
+
+
+### By event category and year
+
+Tabulate the outcomes by event type category and year.
+
+```{r}
+select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), propertyDamage = sum(propdmg)))
+groupby <- expression(list(eventCategory, year(beginDate)))
+tabEventCategoryYear <- D[, eval(select), eval(groupby)]
+tabEventCategoryYear <- tabEventCategoryYear[order(eventCategory, year)]
+```
+
+Plot the data.
+
+```{r fatalities}
+ggplot(tabEventCategoryYear, aes(x=year, y=fatalities, color=eventCategory)) +
+	geom_line() +
+	scale_color_brewer(name="Category", palette="Set1") +
+	labs(title="Fatalities", x="Year", y="Number") +
+	theme(legend.position="bottom")
+```
+
+```{r injuries}
+ggplot(tabEventCategoryYear, aes(x=year, y=injuries, color=eventCategory)) +
+	geom_line() +
+	scale_color_brewer(name="Category", palette="Set1") +
+	labs(title="Injuries", x="Year", y="Number") +
+	theme(legend.position="bottom")
+```
+
+```{r propertydamage}
+ggplot(tabEventCategoryYear, aes(x=year, y=propertyDamage / 1E3, color=eventCategory)) +
+	geom_line() +
+	scale_color_brewer(name="Category", palette="Set1") +
+	labs(title="Property damage", x="Year", y="$ (thousands)") +
+	theme(legend.position="bottom")
+```
