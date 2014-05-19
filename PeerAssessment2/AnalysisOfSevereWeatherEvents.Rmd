@@ -3,9 +3,8 @@
 
 ## Synopsis
 
-The U.S. National Oceanic and Atmospheric Administration's (NOAA) storm
-database was used to compare outcomes from storm and severe weather event
-categories.
+The U.S. National Oceanic and Atmospheric Administration's (NOAA) [storm database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+was used to compare outcomes from storm and severe weather event categories.
 Analyzed data are from 1993--2011.
 Outcomes analyzed are the number of fatalities and injuries and the dollar
 amount of property damage.
@@ -13,11 +12,11 @@ Event categories are convective, extreme temperature, flood, winter,
 and other.
 
 The state that suffered the greatest number of fatalities was Illinois, with
-the most from extreme temperature events.
+the most from extreme temperature events (998 fatalities).
 The state that suffered the greatest number of injuries was Texas, with the
-most from flood events.
+most from flood events (6,951 injuries).
 The state that suffered the greatest property damage was California, with the
-most from flood events.
+most from flood events ($117.4 billion).
 
 
 ## Data Processing
@@ -37,14 +36,12 @@ setInternet2(TRUE)
 
 ### Download and unzip files
 
-**Don't run this subsection during testing**
-
 Download the storm data documentation files.
 
 * National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
 * National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
 
-```{r, eval=FALSE}
+```{r}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
 f <- file.path(getwd(), "StormDataDocumentation.pdf")
 download.file(url, f, mode="wb")
@@ -55,7 +52,7 @@ download.file(url, f, mode="wb")
 
 Download the zipped [storm data file](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).
 
-```{r, eval=FALSE}
+```{r}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 f <- file.path(getwd(), "StormData.csv.bz2")
 download.file(url, f, mode="wb")
@@ -63,7 +60,7 @@ download.file(url, f, mode="wb")
 
 Unzip the data file.
 
-```{r, eval=FALSE}
+```{r}
 executable <- file.path("C:", "Program Files", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
@@ -320,10 +317,18 @@ tabulationState <- tabulationState[, ":=" (rankFatalities     = abs(rank(fatalit
                                            rankPropertyDamage = abs(rank(propertyDamage, ties.method="random") - 51))]
 ```
 
+Make factor class variable to be used for plotting.
+
+```{r}
+tabulationState <- tabulationState[, ":=" (facFatalities     = factor(sprintf("#%.0d %s", rankFatalities    , state)),
+                                           facInjuries       = factor(sprintf("#%.0d %s", rankInjuries      , state)),
+                                           facPropertyDamage = factor(sprintf("#%.0d %s", rankPropertyDamage, state)))]
+```
+
 Merge the overall ranks onto the state and category tabulation.
 
 ```{r}
-tabulationStateCategory <- merge(tabulationStateCategory, tabulationState[, list(state, rankFatalities, rankInjuries, rankPropertyDamage)], by=c("state"))
+tabulationStateCategory <- merge(tabulationStateCategory, tabulationState[, list(state, rankFatalities, facFatalities, rankInjuries, facInjuries, rankPropertyDamage, facPropertyDamage)], by=c("state"))
 ```
 
 
@@ -341,22 +346,23 @@ Compare each state using small multiples and summarize the top ranked states.
 ### Fatalities
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
-```{r fatalities, fig.height=10, fig.width=10}
-ggplot(tabulationStateCategory[order(rankFatalities)], aes(x=eventCategory, y=fatalities, fill=eventCategory)) +
-	geom_bar(alpha=1/2, stat="identity") +
-	scale_fill_brewer(name="Category", palette="Set1") +
-	scale_x_discrete(name="", labels="") +
-	facet_wrap(~ state, nrow=5, ncol=10) +
-	labs(title="Fatalities", y="Number") +
-	theme(legend.position="bottom")
+```{r fatalities}
+ggplot(tabulationStateCategory[rankFatalities <= 9], aes(x=facFatalities, y=fatalities, fill=eventCategory)) +
+  geom_bar(alpha=1/2, stat="identity") +
+  scale_fill_brewer(name="Category", palette="Set1") +
+  scale_x_discrete(name="State") +
+  labs(title="Fatalities", y="") +
+  theme(legend.position="bottom")
 ```
 
-The 3 states with the highest number of fatalities are listed below.
+The state with the highest number of fatalities is listed below.
 
 ```{r, results="asis"}
-top3 <- tabulationState[rankFatalities <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankFatalities <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankFatalities, state, fatalities = format(fatalities, big.mark=","), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
 tabulation <- tabulation[order(rankFatalities, eventCategory)]
@@ -367,22 +373,23 @@ print(xtable(tabulation, digits=0), type="html", include.rownames=FALSE)
 ### Injuries
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
-```{r injuries, fig.height=10, fig.width=10}
-ggplot(tabulationStateCategory[order(state)], aes(x=eventCategory, y=injuries / 1E3, fill=eventCategory)) +
-	geom_bar(alpha=1/2, stat="identity") +
-	scale_fill_brewer(name="Category", palette="Set1") +
-	scale_x_discrete(name="", labels="") +
-	facet_wrap(~ state, nrow=5, ncol=10) +
-	labs(title="Injuries", y="Number (thousands)") +
-	theme(legend.position="bottom")
+```{r injuries}
+ggplot(tabulationStateCategory[rankInjuries <= 9], aes(x=facInjuries, y=injuries / 1E3, fill=eventCategory)) +
+  geom_bar(alpha=1/2, stat="identity") +
+  scale_fill_brewer(name="Category", palette="Set1") +
+  scale_x_discrete(name="State") +
+  labs(title="Injuries (thousands)", y="") +
+  theme(legend.position="bottom")
 ```
 
-The 3 states with the highest number of injuries are listed below.
+The state with the highest number of injuries is listed below.
 
 ```{r, results="asis"}
-top3 <- tabulationState[rankInjuries <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankInjuries <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankInjuries, state, injuries = format(injuries, big.mark=","), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
 tabulation <- tabulation[order(rankInjuries, eventCategory)]
@@ -393,22 +400,23 @@ print(xtable(tabulation, digits=0), type="html", include.rownames=FALSE)
 ### Property damage
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
-```{r propertydamage, fig.height=10, fig.width=10}
-ggplot(tabulationStateCategory[order(state)], aes(x=eventCategory, y=propertyDamage / 1E9, fill=eventCategory)) +
-	geom_bar(alpha=1/2, stat="identity") +
-	scale_fill_brewer(name="Category", palette="Set1") +
-	scale_x_discrete(name="", labels="") +
-	facet_wrap(~ state, nrow=5, ncol=10) +
-	labs(title="Property damage", y="$ (billions)") +
-	theme(legend.position="bottom")
+```{r propertydamage}
+ggplot(tabulationStateCategory[rankPropertyDamage <= 9], aes(x=facPropertyDamage, y=propertyDamage / 1E9, fill=eventCategory)) +
+  geom_bar(alpha=1/2, stat="identity") +
+  scale_fill_brewer(name="Category", palette="Set1") +
+  scale_x_discrete(name="State") +
+  labs(title="Property damage ($ billions)", y="") +
+  theme(legend.position="bottom")
 ```
 
-The 3 states with the highest property damage are listed below.
+The state with the highest property damage is listed below.
 
 ```{r, results="asis"}
-top3 <- tabulationState[rankPropertyDamage <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankPropertyDamage <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankPropertyDamage, state, propertyDamage = sprintf("$%s billion", format(round(propertyDamage / 1E9, digits=1), big.mark=",")), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
 tabulation <- tabulation[order(rankPropertyDamage, eventCategory)]

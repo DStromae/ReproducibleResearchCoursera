@@ -3,9 +3,8 @@
 
 ## Synopsis
 
-The U.S. National Oceanic and Atmospheric Administration's (NOAA) storm
-database was used to compare outcomes from storm and severe weather event
-categories.
+The U.S. National Oceanic and Atmospheric Administration's (NOAA) [storm database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+was used to compare outcomes from storm and severe weather event categories.
 Analyzed data are from 1993--2011.
 Outcomes analyzed are the number of fatalities and injuries and the dollar
 amount of property damage.
@@ -13,11 +12,11 @@ Event categories are convective, extreme temperature, flood, winter,
 and other.
 
 The state that suffered the greatest number of fatalities was Illinois, with
-the most from extreme temperature events.
+the most from extreme temperature events (998 fatalities).
 The state that suffered the greatest number of injuries was Texas, with the
-most from flood events.
+most from flood events (6,951 injuries).
 The state that suffered the greatest property damage was California, with the
-most from flood events.
+most from flood events ($117.4 billion).
 
 
 ## Data Processing
@@ -45,8 +44,6 @@ setInternet2(TRUE)
 
 
 ### Download and unzip files
-
-**Don't run this subsection during testing**
 
 Download the storm data documentation files.
 
@@ -84,6 +81,13 @@ switch <- "-aoa"
 cmd <- paste(paste0("\"", executable, "\""), parameters, paste0("\"", f, "\""), 
     switch)
 cmd
+```
+
+```
+## [1] "\"C:/Program Files/7-Zip/7z.exe\" x \"C:/Users/Ben/Documents/GitHub repositories/ReproducibleResearch/PeerAssessment2/StormData.csv.bz2\" -aoa"
+```
+
+```r
 system(cmd)
 ```
 
@@ -1117,12 +1121,24 @@ tabulationState <- tabulationState[, `:=`(rankFatalities = abs(rank(fatalities,
 ```
 
 
+Make factor class variable to be used for plotting.
+
+
+```r
+tabulationState <- tabulationState[, `:=`(facFatalities = factor(sprintf("#%.0d %s", 
+    rankFatalities, state)), facInjuries = factor(sprintf("#%.0d %s", rankInjuries, 
+    state)), facPropertyDamage = factor(sprintf("#%.0d %s", rankPropertyDamage, 
+    state)))]
+```
+
+
 Merge the overall ranks onto the state and category tabulation.
 
 
 ```r
 tabulationStateCategory <- merge(tabulationStateCategory, tabulationState[, 
-    list(state, rankFatalities, rankInjuries, rankPropertyDamage)], by = c("state"))
+    list(state, rankFatalities, facFatalities, rankInjuries, facInjuries, rankPropertyDamage, 
+        facPropertyDamage)], by = c("state"))
 ```
 
 
@@ -1141,25 +1157,26 @@ Compare each state using small multiples and summarize the top ranked states.
 ### Fatalities
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
 
 ```r
-ggplot(tabulationStateCategory[order(rankFatalities)], aes(x = eventCategory, 
+ggplot(tabulationStateCategory[rankFatalities <= 9], aes(x = facFatalities, 
     y = fatalities, fill = eventCategory)) + geom_bar(alpha = 1/2, stat = "identity") + 
-    scale_fill_brewer(name = "Category", palette = "Set1") + scale_x_discrete(name = "", 
-    labels = "") + facet_wrap(~state, nrow = 5, ncol = 10) + labs(title = "Fatalities", 
-    y = "Number") + theme(legend.position = "bottom")
+    scale_fill_brewer(name = "Category", palette = "Set1") + scale_x_discrete(name = "State") + 
+    labs(title = "Fatalities", y = "") + theme(legend.position = "bottom")
 ```
 
 ![plot of chunk fatalities](figure/fatalities.png) 
 
 
-The 3 states with the highest number of fatalities are listed below.
+The state with the highest number of fatalities is listed below.
 
 
 ```r
-top3 <- tabulationState[rankFatalities <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankFatalities <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankFatalities, state, fatalities = format(fatalities, 
     big.mark = ","), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
@@ -1168,7 +1185,7 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
 <!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 08:17:08 2014 -->
+<!-- Mon May 19 11:38:41 2014 -->
 <TABLE border=1>
 <TR> <TH> rankFatalities </TH> <TH> state </TH> <TH> fatalities </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD align="right"> 1 </TD> <TD> IL </TD> <TD> 181 </TD> <TD> Convection </TD> </TR>
@@ -1176,16 +1193,6 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
   <TR> <TD align="right"> 1 </TD> <TD> IL </TD> <TD>  24 </TD> <TD> Flood </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> IL </TD> <TD>  20 </TD> <TD> Winter </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> IL </TD> <TD>   4 </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> TX </TD> <TD> 164 </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> TX </TD> <TD> 306 </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> TX </TD> <TD> 260 </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> TX </TD> <TD>  40 </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> TX </TD> <TD>  96 </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> PA </TD> <TD>  86 </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> PA </TD> <TD> 527 </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> PA </TD> <TD>  90 </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> PA </TD> <TD>  19 </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> PA </TD> <TD>  43 </TD> <TD> Other </TD> </TR>
    </TABLE>
 
 
@@ -1193,25 +1200,26 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ### Injuries
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
 
 ```r
-ggplot(tabulationStateCategory[order(state)], aes(x = eventCategory, y = injuries/1000, 
+ggplot(tabulationStateCategory[rankInjuries <= 9], aes(x = facInjuries, y = injuries/1000, 
     fill = eventCategory)) + geom_bar(alpha = 1/2, stat = "identity") + scale_fill_brewer(name = "Category", 
-    palette = "Set1") + scale_x_discrete(name = "", labels = "") + facet_wrap(~state, 
-    nrow = 5, ncol = 10) + labs(title = "Injuries", y = "Number (thousands)") + 
-    theme(legend.position = "bottom")
+    palette = "Set1") + scale_x_discrete(name = "State") + labs(title = "Injuries (thousands)", 
+    y = "") + theme(legend.position = "bottom")
 ```
 
 ![plot of chunk injuries](figure/injuries.png) 
 
 
-The 3 states with the highest number of injuries are listed below.
+The state with the highest number of injuries is listed below.
 
 
 ```r
-top3 <- tabulationState[rankInjuries <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankInjuries <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankInjuries, state, injuries = format(injuries, big.mark = ","), 
     eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
@@ -1220,7 +1228,7 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
 <!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 08:17:13 2014 -->
+<!-- Mon May 19 11:38:42 2014 -->
 <TABLE border=1>
 <TR> <TH> rankInjuries </TH> <TH> state </TH> <TH> injuries </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD align="right"> 1 </TD> <TD> TX </TD> <TD> 1,997 </TD> <TD> Convection </TD> </TR>
@@ -1228,16 +1236,6 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
   <TR> <TD align="right"> 1 </TD> <TD> TX </TD> <TD> 6,951 </TD> <TD> Flood </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> TX </TD> <TD>   211 </TD> <TD> Winter </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> TX </TD> <TD>   186 </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> MO </TD> <TD> 2,441 </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> MO </TD> <TD> 4,206 </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> MO </TD> <TD>    40 </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> MO </TD> <TD>    17 </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> MO </TD> <TD>     8 </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> AL </TD> <TD> 4,110 </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> AL </TD> <TD>    73 </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> AL </TD> <TD>    26 </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> AL </TD> <TD>     2 </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> AL </TD> <TD>   106 </TD> <TD> Other </TD> </TR>
    </TABLE>
 
 
@@ -1245,25 +1243,27 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ### Property damage
 
 Plot small multiples ordered by state ranking.
+Plot only the top 9.
+*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
 
 
 ```r
-ggplot(tabulationStateCategory[order(state)], aes(x = eventCategory, y = propertyDamage/1e+09, 
-    fill = eventCategory)) + geom_bar(alpha = 1/2, stat = "identity") + scale_fill_brewer(name = "Category", 
-    palette = "Set1") + scale_x_discrete(name = "", labels = "") + facet_wrap(~state, 
-    nrow = 5, ncol = 10) + labs(title = "Property damage", y = "$ (billions)") + 
-    theme(legend.position = "bottom")
+ggplot(tabulationStateCategory[rankPropertyDamage <= 9], aes(x = facPropertyDamage, 
+    y = propertyDamage/1e+09, fill = eventCategory)) + geom_bar(alpha = 1/2, 
+    stat = "identity") + scale_fill_brewer(name = "Category", palette = "Set1") + 
+    scale_x_discrete(name = "State") + labs(title = "Property damage ($ billions)", 
+    y = "") + theme(legend.position = "bottom")
 ```
 
 ![plot of chunk propertydamage](figure/propertydamage.png) 
 
 
-The 3 states with the highest property damage are listed below.
+The state with the highest property damage is listed below.
 
 
 ```r
-top3 <- tabulationState[rankPropertyDamage <= 3, state]
-where <- expression(state %in% top3)
+top <- tabulationState[rankPropertyDamage <= 1, state]
+where <- expression(state %in% top)
 select <- expression(list(rankPropertyDamage, state, propertyDamage = sprintf("$%s billion", 
     format(round(propertyDamage/1e+09, digits = 1), big.mark = ",")), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
@@ -1272,7 +1272,7 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
 <!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 08:17:17 2014 -->
+<!-- Mon May 19 11:38:43 2014 -->
 <TABLE border=1>
 <TR> <TH> rankPropertyDamage </TH> <TH> state </TH> <TH> propertyDamage </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD align="right"> 1 </TD> <TD> CA </TD> <TD> $  0.6 billion </TD> <TD> Convection </TD> </TR>
@@ -1280,15 +1280,5 @@ print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
   <TR> <TD align="right"> 1 </TD> <TD> CA </TD> <TD> $117.4 billion </TD> <TD> Flood </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> CA </TD> <TD> $  0.1 billion </TD> <TD> Winter </TD> </TR>
   <TR> <TD align="right"> 1 </TD> <TD> CA </TD> <TD> $  5.3 billion </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> LA </TD> <TD> $  1.4 billion </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> LA </TD> <TD> $  0.0 billion </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> LA </TD> <TD> $  3.3 billion </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> LA </TD> <TD> $  0.2 billion </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 2 </TD> <TD> LA </TD> <TD> $ 54.3 billion </TD> <TD> Other </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> FL </TD> <TD> $  6.2 billion </TD> <TD> Convection </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> FL </TD> <TD> $  0.0 billion </TD> <TD> Extreme temperature </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> FL </TD> <TD> $  1.5 billion </TD> <TD> Flood </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> FL </TD> <TD> $  0.0 billion </TD> <TD> Winter </TD> </TR>
-  <TR> <TD align="right"> 3 </TD> <TD> FL </TD> <TD> $ 33.2 billion </TD> <TD> Other </TD> </TR>
    </TABLE>
 
