@@ -1,9 +1,4 @@
-# Analysis of Severe Weather Events
-
-> Title: Your document should have a title that **briefly** summarizes your data
-> analysis
-
-Peer assessment 2 assignment for Coursera course [Reproducible Research](Reproducible Research).
+# Comparison of storms and other severe weather events on fatalities, injuries, and property damages
 
 
 ## Synopsis
@@ -13,27 +8,8 @@ Peer assessment 2 assignment for Coursera course [Reproducible Research](Reprodu
 
 **To be completed**
 
-> ## Introduction
-> 
-> Storms and other severe weather events can cause both public health and economic
-> problems for communities and municipalities. Many severe events can result in
-> fatalities, injuries, and property damage, and preventing such outcomes to the
-> extent possible is a key concern.
-> 
-> This project involves exploring the U.S. National Oceanic and Atmospheric
-> Administration's (NOAA) storm database. This database tracks characteristics of
-> major storms and weather events in the United States, including when and where
-> they occur, as well as estimates of any fatalities, injuries, and property
-> damage.
-> 
-
 
 ## Data Processing
-
-> The events in the database start in the year 1950 and end in November 2011. In
-> the earlier years of the database there are generally fewer events recorded,
-> most likely due to a lack of good records. More recent years should be
-> considered more complete.
 
 Load packages.
   
@@ -179,7 +155,7 @@ indicator <- function (regex) {
 ```
 
 Create an indicators for variations of **Lightning**, **Tornado**, **Thunderstorm Wind**, and **Hail**.
-These fall into the top-level category of **Convection**.
+List the event types that fall into the category of **Convection**.
 
 ```{r}
 regexLightning <- "\\bL\\S+?G\\b"
@@ -192,7 +168,7 @@ D <- D[, eventConvection := indicator(regex)]
 ```
 
 Create an indicators for variations of **Cold** and **Heat**.
-These fall into the top-level category of **Extreme Temperatures**.
+List the event types that fall into the category of **Extreme Temperatures**.
 
 ```{r}
 regex <- "COLD|HEAT"
@@ -200,7 +176,7 @@ D <- D[, eventExtremeTemp := indicator(regex)]
 ```
 
 Create an indicators for variations of **Flood** and **Rain**.
-These fall into the top-level category of **Flood**.
+List the event types that fall into the category of **Flood**.
 
 ```{r}
 regexFlood <- "(\\bFL\\S+?D)"
@@ -210,7 +186,7 @@ D <- D[, eventFlood := indicator(regex)]
 ```
 
 Create an indicator for variations of **Snow**, **Ice**, **Freeze**, or **Winter Weather**.
-These fall into the top-level category of **Winter**.
+List the event types that fall into the category of **Winter**.
 
 ```{r}
 regex <- "(SNOW)|(ICE)|(ICY)|(FREEZ)|(WINT)"
@@ -237,12 +213,7 @@ Create an **Other** indicator for ungrouped event types.
 D <- D[, eventOther := eventConvection == FALSE & eventExtremeTemp == FALSE & eventFlood == FALSE & eventWinter == FALSE]
 ```
 
-According to the [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf), 
-
-> An Event is an individual type of storm event. (Thunderstorm Wind, Hail,
-> Tornado and Flood are events)
-
-A crosstabulation for these events is below.
+A crosstabulation for the event type categories is below.
 
 ```{r}
 groupby <- expression(list(eventConvection, eventExtremeTemp, eventFlood, eventWinter, eventOther))
@@ -267,6 +238,7 @@ The hierarchy is as follows.
 
 Under this categorization hierarchy, the example event type of *THUNDERSTORM
 WINDS/FLASH FLOOD* would be assigned to the *Convection* category.
+I.e., higher categories outrank lower categories.
 
 ```{r}
 D <- D[, eventCategory := ifelse(eventConvection, 1, ifelse(eventExtremeTemp, 2, ifelse(eventFlood, 3, ifelse(eventWinter, 4, ifelse(eventOther, 5, NA)))))]
@@ -276,31 +248,28 @@ D[, .N, eventCategory]
 ```
 
 
+### Restrict date range
+
+The date ranges for each category are below.
+
+```{r}
+select <- expression(list(numberEvents = .N, minDate = min(beginDate), maxDate = max(beginDate)))
+groupby <- expression(list(eventCategory))
+tabEventCategory <- D[, eval(select), eval(groupby)]
+tabEventCategory <- tabEventCategory[order(eventCategory)]
+message(sprintf("Convection events reach as far back as %.0d.", year(min(D$beginDate[D$eventCategory == "Convection"]))))
+message(sprintf("However, the other categories only reach as far back as %.0d.", year(min(D$beginDate[D$eventCategory != "Convection"]))))
+```
+
+```{r}
+minYear <- year(min(D$beginDate[D$eventCategory != "Convection"]))
+maxYear <- year(max(D$beginDate))
+D <- D[minYear <= year(beginDate) & year(beginDate) <= maxYear]
+message(sprintf("For the purpose of this analysis, the date range will be limited to %.0d to %.0d.", minYear, maxYear))
+```
+
+
 ## Results
-
-> ### Questions
-> 
-> Your data analysis must address the following questions:
-> 
-> Across the United States, which types of events (as indicated in the `EVTYPE`
-> variable) are most harmful with respect to popuulation health?
-> 
-> Across the United States, which types of events have the greatest economic
-> consequences?
-> 
-> Consider writing your report as if it were to be read by a government or
-> municipal manager who might be responsible for preparing for severe weather
-> events and will need to prioritize resources for different types of events.
-> However, there is no need to make any specific recommendations in your report.
-> 
-> The analysis document must have **at least one figure containing as plot**.
-> 
-> Your analyis must have **no more than three figures**. Figures may have multiple
-> plots in them (i.e. panel plots), but there cannot be more than three figures
-> total.
-> 
-
-### Outcomes
 
 The following outcomes are reported.
 
@@ -311,10 +280,10 @@ The following outcomes are reported.
 
 ### By event category
 
-Tabulate the outcomes by event type category.
+The outcomes by event type category are tabulated below.
 
 ```{r}
-select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), propertyDamage = sum(propdmg)))
+select <- expression(list(numberEvents = format(.N, big.mark=","), fatalities = format(sum(fatalities), big.mark=","), injuries = format(sum(injuries), big.mark=","), propertyDamage = sprintf("$%s billion", format(round(sum(propertyDamage) / 1E9, digits=1), big.mark=","))))
 groupby <- expression(list(eventCategory))
 tabEventCategory <- D[, eval(select), eval(groupby)]
 tabEventCategory <- tabEventCategory[order(eventCategory)]
@@ -329,37 +298,55 @@ print(xtable(tabEventCategory, digits=0), type="html", include.rownames=FALSE)
 
 ### By event category and year
 
-Tabulate the outcomes by event type category and year.
+The outcomes by event type category and year are below.
 
 ```{r}
-select <- expression(list(numberEvents = .N, fatalities = sum(fatalities), injuries = sum(injuries), propertyDamage = sum(propdmg)))
+select <- expression(list(numberEvents = .N, fatalities = sum(fatalities, na.rm=TRUE), injuries = sum(injuries, na.rm=TRUE), propertyDamage = sum(propertyDamage, na.rm=TRUE)))
 groupby <- expression(list(eventCategory, year(beginDate)))
 tabEventCategoryYear <- D[, eval(select), eval(groupby)]
 tabEventCategoryYear <- tabEventCategoryYear[order(eventCategory, year)]
 ```
 
-Plot the data.
+Find the maximum values for each outcome.
 
-```{r fatalities}
-ggplot(tabEventCategoryYear, aes(x=year, y=fatalities, color=eventCategory)) +
-	geom_line() +
-	scale_color_brewer(name="Category", palette="Set1") +
+```{r}
+maxFatalities <- tabEventCategoryYear[, max(fatalities)]
+maxInjuries <- tabEventCategoryYear[, max(injuries)]
+maxPropertyDamage <- tabEventCategoryYear[, max(propertyDamage)]
+```
+
+Plot each outcome using small multiples and summarize.
+
+```{r fatalities, fig.width=10}
+ggplot(tabEventCategoryYear, aes(x=year, y=fatalities, fill=eventCategory)) +
+  geom_area(alpha=1/2) +
+	scale_fill_brewer(name="Category", palette="Set1") +
+  facet_wrap(~ eventCategory, nrow=2, ncol=3) +
 	labs(title="Fatalities", x="Year", y="Number") +
-	theme(legend.position="bottom")
+	theme(legend.position="none")
 ```
+The category with the most fatalities was *`r tabEventCategoryYear[fatalities == maxFatalities, eventCategory]`* with `r maxFatalities` fatalities in `r tabEventCategoryYear[fatalities == maxFatalities, year]`.
+This is the year of the [Chicago heat wave](http://en.wikipedia.org/wiki/1995_Chicago_heat_wave).
 
-```{r injuries}
-ggplot(tabEventCategoryYear, aes(x=year, y=injuries, color=eventCategory)) +
-	geom_line() +
-	scale_color_brewer(name="Category", palette="Set1") +
+```{r injuries, fig.width=10}
+ggplot(tabEventCategoryYear, aes(x=year, y=injuries, fill=eventCategory)) +
+  geom_area(alpha=1/2) +
+  scale_fill_brewer(name="Category", palette="Set1") +
+  facet_wrap(~ eventCategory, nrow=2, ncol=3) +
 	labs(title="Injuries", x="Year", y="Number") +
-	theme(legend.position="bottom")
+	theme(legend.position="none")
 ```
 
-```{r propertydamage}
-ggplot(tabEventCategoryYear, aes(x=year, y=propertyDamage / 1E3, color=eventCategory)) +
-	geom_line() +
-	scale_color_brewer(name="Category", palette="Set1") +
+The category with the most injuries was *`r tabEventCategoryYear[injuries == maxInjuries, eventCategory]`* with `r maxInjuries` injuries in `r tabEventCategoryYear[injuries == maxInjuries, year]`.
+
+```{r propertydamage, fig.width=10}
+ggplot(tabEventCategoryYear, aes(x=year, y=propertyDamage / 1E3, fill=eventCategory)) +
+  geom_area(alpha=1/2) +
+  scale_fill_brewer(name="Category", palette="Set1") +
+  facet_wrap(~ eventCategory, nrow=2, ncol=3) +
 	labs(title="Property damage", x="Year", y="$ (thousands)") +
-	theme(legend.position="bottom")
+	theme(legend.position="none")
 ```
+
+The category with the most property damage was *`r tabEventCategoryYear[propertyDamage == maxPropertyDamage, eventCategory]`* with `r sprintf("$%s billion", format(round(maxPropertyDamage / 1E9, digits=1), big.mark=","))` in damage in `r tabEventCategoryYear[propertyDamage == maxPropertyDamage, year]`.
+This was the year of significant flooding of the [Mid-Atlantic region](http://en.wikipedia.org/wiki/Mid-Atlantic_United_States_flood_of_2006).
