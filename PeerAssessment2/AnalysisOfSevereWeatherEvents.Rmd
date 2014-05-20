@@ -1,4 +1,4 @@
-# States suffering the greatest fatalities, injuries, and property damages from storms and other severe weather events
+# Comparison of states on outcomes from storms and other severe weather events
 
 
 ## Synopsis
@@ -41,7 +41,7 @@ Download the storm data documentation files.
 * National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
 * National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
 
-```{r}
+```{r downloaddocs, cache=TRUE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf"
 f <- file.path(getwd(), "StormDataDocumentation.pdf")
 download.file(url, f, mode="wb")
@@ -52,7 +52,7 @@ download.file(url, f, mode="wb")
 
 Download the zipped [storm data file](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).
 
-```{r}
+```{r downloaddata, cache=TRUE}
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 f <- file.path(getwd(), "StormData.csv.bz2")
 download.file(url, f, mode="wb")
@@ -60,7 +60,7 @@ download.file(url, f, mode="wb")
 
 Unzip the data file.
 
-```{r}
+```{r unzip, cache=TRUE}
 executable <- file.path("C:", "Program Files", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
@@ -290,135 +290,74 @@ D <- D[state %in% state.abb]
 ```
 
 
-### Tabulate data
+### Reshape data
 
-Tabulate the outcomes by state and event type category.
+Reshape data table with essential variables for tabulation and plotting.
 
 ```{r}
-select <- expression(list(numberEvents = .N, fatalities = sum(fatalities, na.rm=TRUE), injuries = sum(injuries, na.rm=TRUE), propertyDamage = sum(propertyDamage, na.rm=TRUE)))
-groupby <- expression(list(state, eventCategory))
-tabulationStateCategory <- D[, eval(select), eval(groupby)]
+labels <- c("Convection", "Extreme temperature", "Flood", "Winter", "Other")
+D2 <- rbind(D[, list(state, year = year(beginDate), eventCategory = factor(eventCategory, labels=labels), outcome = "Fatalities (thousands)", value = fatalities / 1E3)],
+            D[, list(state, year = year(beginDate), eventCategory = factor(eventCategory, labels=labels), outcome = "Injuries (thousands)", value = injuries / 1E3)],
+            D[, list(state, year = year(beginDate), eventCategory = factor(eventCategory, labels=labels), outcome = "Property damage ($, billions)", value = propertyDamage / 1E9)])
 ```
 
-Tabulate the outcomes by state.
+Tabulate by state and category, and by state.
+For the state tabulation, rank each state according to outcome.
 
 ```{r}
-select <- expression(list(numberEvents = .N, fatalities = sum(fatalities, na.rm=TRUE), injuries = sum(injuries, na.rm=TRUE), propertyDamage = sum(propertyDamage, na.rm=TRUE)))
-groupby <- expression(list(state))
-tabulationState <- D[, eval(select), eval(groupby)]
-```
-
-Compute ranks of each outcome.
-Reverse the order or the ranks.
-
-```{r}
-tabulationState <- tabulationState[, ":=" (rankFatalities     = abs(rank(fatalities    , ties.method="random") - 51),
-                                           rankInjuries       = abs(rank(injuries      , ties.method="random") - 51),
-                                           rankPropertyDamage = abs(rank(propertyDamage, ties.method="random") - 51))]
-```
-
-Make factor class variable to be used for plotting.
-
-```{r}
-tabulationState <- tabulationState[, ":=" (facFatalities     = factor(sprintf("#%.0d %s", rankFatalities    , state)),
-                                           facInjuries       = factor(sprintf("#%.0d %s", rankInjuries      , state)),
-                                           facPropertyDamage = factor(sprintf("#%.0d %s", rankPropertyDamage, state)))]
-```
-
-Merge the overall ranks onto the state and category tabulation.
-
-```{r}
-tabulationStateCategory <- merge(tabulationStateCategory, tabulationState[, list(state, rankFatalities, facFatalities, rankInjuries, facInjuries, rankPropertyDamage, facPropertyDamage)], by=c("state"))
+tabulationStateCategory <- D2[, list(value = sum(value)), list(state, eventCategory, outcome)]
+tabulationState <- D2[, list(value = sum(value)), list(state, outcome)]
+tabulationState <- tabulationState[, rank := abs(rank(value, ties.method="random") - 51), list(outcome)]
 ```
 
 
 ## Results
 
-The following outcomes are reported.
+Plot each outcome by state.
+The color of each bar segment corresponds to event category.
+The outcomes combine data from `r minYear` to `r maxYear`.
 
-* Total number of fatalities
-* Total number of injuries
-* Property damage ($)
-
-Compare each state using small multiples and summarize the top ranked states.
-
-
-### Fatalities
-
-Plot small multiples ordered by state ranking.
-Plot only the top 9.
-*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
-
-```{r fatalities}
-ggplot(tabulationStateCategory[rankFatalities <= 9], aes(x=facFatalities, y=fatalities, fill=eventCategory)) +
+```{r smallmultiples, fig.width=15}
+ggplot(tabulationStateCategory, aes(x=state, y=value, fill=eventCategory)) +
   geom_bar(alpha=1/2, stat="identity") +
   scale_fill_brewer(name="Category", palette="Set1") +
-  scale_x_discrete(name="State") +
-  labs(title="Fatalities", y="") +
+  scale_x_discrete(name="") +
+  scale_y_continuous(name="") +
+  facet_wrap(~ outcome, scales="free", nrow=3, ncol=1) +
   theme(legend.position="bottom")
 ```
 
-The state with the highest number of fatalities is listed below.
+Tabulate the highest ranking state for each outcome.
+
+**Fatalities**
 
 ```{r, results="asis"}
-top <- tabulationState[rankFatalities <= 1, state]
-where <- expression(state %in% top)
-select <- expression(list(rankFatalities, state, fatalities = format(fatalities, big.mark=","), eventCategory))
+top <- tabulationState[grepl("Fatal", outcome) & rank <= 1, state]
+where <- expression(state %in% top & grepl("Fatal", outcome))
+select <- expression(list(state, value = format(value * 1E3, big.mark=","), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
-tabulation <- tabulation[order(rankFatalities, eventCategory)]
+tabulation <- tabulation[order(value, decreasing=TRUE)]
 print(xtable(tabulation, digits=0), type="html", include.rownames=FALSE)
 ```
 
-
-### Injuries
-
-Plot small multiples ordered by state ranking.
-Plot only the top 9.
-*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
-
-```{r injuries}
-ggplot(tabulationStateCategory[rankInjuries <= 9], aes(x=facInjuries, y=injuries / 1E3, fill=eventCategory)) +
-  geom_bar(alpha=1/2, stat="identity") +
-  scale_fill_brewer(name="Category", palette="Set1") +
-  scale_x_discrete(name="State") +
-  labs(title="Injuries (thousands)", y="") +
-  theme(legend.position="bottom")
-```
-
-The state with the highest number of injuries is listed below.
+**Injuries**
 
 ```{r, results="asis"}
-top <- tabulationState[rankInjuries <= 1, state]
-where <- expression(state %in% top)
-select <- expression(list(rankInjuries, state, injuries = format(injuries, big.mark=","), eventCategory))
+top <- tabulationState[grepl("Inj", outcome) & rank <= 1, state]
+where <- expression(state %in% top & grepl("Inj", outcome))
+select <- expression(list(state, value = format(value * 1E3, big.mark=","), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
-tabulation <- tabulation[order(rankInjuries, eventCategory)]
+tabulation <- tabulation[order(value, decreasing=TRUE)]
 print(xtable(tabulation, digits=0), type="html", include.rownames=FALSE)
 ```
 
-
-### Property damage
-
-Plot small multiples ordered by state ranking.
-Plot only the top 9.
-*Ordering > 9 states gets screwed up (#1, #10, #2, ...); need to fix*
-
-```{r propertydamage}
-ggplot(tabulationStateCategory[rankPropertyDamage <= 9], aes(x=facPropertyDamage, y=propertyDamage / 1E9, fill=eventCategory)) +
-  geom_bar(alpha=1/2, stat="identity") +
-  scale_fill_brewer(name="Category", palette="Set1") +
-  scale_x_discrete(name="State") +
-  labs(title="Property damage ($ billions)", y="") +
-  theme(legend.position="bottom")
-```
-
-The state with the highest property damage is listed below.
+**Property damage**
 
 ```{r, results="asis"}
-top <- tabulationState[rankPropertyDamage <= 1, state]
-where <- expression(state %in% top)
-select <- expression(list(rankPropertyDamage, state, propertyDamage = sprintf("$%s billion", format(round(propertyDamage / 1E9, digits=1), big.mark=",")), eventCategory))
+top <- tabulationState[grepl("Prop", outcome) & rank <= 1, state]
+where <- expression(state %in% top & grepl("Prop", outcome))
+select <- expression(list(state, value = sprintf("$%s billion", format(round(value, digits=1), big.mark=",")), eventCategory))
 tabulation <- tabulationStateCategory[eval(where), eval(select)]
-tabulation <- tabulation[order(rankPropertyDamage, eventCategory)]
+tabulation <- tabulation[order(value, decreasing=TRUE)]
 print(xtable(tabulation, digits=0), type="html", include.rownames=FALSE)
 ```
