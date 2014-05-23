@@ -75,7 +75,7 @@ Unzip the data file.
 
 
 ```r
-executable <- file.path("C:", "Program Files", "7-Zip", "7z.exe")
+executable <- file.path("C:", "Program Files (x86)", "7-Zip", "7z.exe")
 parameters <- "x"
 switch <- "-aoa"
 cmd <- paste(paste0("\"", executable, "\""), parameters, paste0("\"", f, "\""), 
@@ -84,7 +84,7 @@ cmd
 ```
 
 ```
-## [1] "\"C:/Program Files/7-Zip/7z.exe\" x \"C:/Users/Ben/Documents/GitHub repositories/ReproducibleResearch/PeerAssessment2/StormData.csv.bz2\" -aoa"
+## [1] "\"C:/Program Files (x86)/7-Zip/7z.exe\" x \"C:/Users/James/Documents/benchan/StormData.csv.bz2\" -aoa"
 ```
 
 ```r
@@ -762,8 +762,7 @@ message(sprintf("Number (%%) of records that don't satisfy any one of the define
 ```
 
 ```
-## Number (%) of records that don't satisfy any one of the defined
-## indicators: 25040 (2.78%)
+## Number (%) of records that don't satisfy any one of the defined indicators: 25040 (2.78%)
 ```
 
 ```r
@@ -773,8 +772,7 @@ message(sprintf("Number of unique event types that don't satisfy any one of the 
 ```
 
 ```
-## Number of unique event types that don't satisfy any one of the defined
-## indicators: 306
+## Number of unique event types that don't satisfy any one of the defined indicators: 306
 ```
 
 ```r
@@ -1065,8 +1063,7 @@ message(sprintf("For the purpose of this analysis, the date range will be limite
 ```
 
 ```
-## For the purpose of this analysis, the date range will be limited to 1993
-## to 2011.
+## For the purpose of this analysis, the date range will be limited to 1993 to 2011.
 ```
 
 
@@ -1115,16 +1112,27 @@ tabulationState <- tabulationState[, `:=`(rank, abs(rank(value, ties.method = "r
 
 ## Results
 
-Plot each outcome by state.
+Plot each state as a [coxcomb](http://understandinguncertainty.org/coxcombs), or rose.
+Each rose shows the magnitude of each outcome
+* **F**atalities, at the 2 o'clock position
+* **I**njuries, at the 6 o'clock position, and
+* **P**roperty damage, at the 10 o'clock position
+
+A rose can show which states suffer very little (e.g., Hawaii), from a single outcome (e.g., Illinois), from two outcomes (e.g., Missouri), or all three outcomes (e.g., Florida).
+
 The color of each bar segment corresponds to event category.
 The outcomes combine data from 1993 to 2011.
 
 
 ```r
-ggplot(tabulationStateCategory, aes(x = state, y = value, fill = eventCategory)) + 
-    geom_bar(alpha = 1/2, stat = "identity") + scale_fill_brewer(name = "Category", 
-    palette = "Set1") + scale_x_discrete(name = "") + scale_y_continuous(name = "") + 
-    facet_wrap(~outcome, scales = "free", nrow = 3, ncol = 1) + theme(legend.position = "bottom")
+tabulationStateCategory <- tabulationStateCategory[, `:=`(valueScaled, scale(value, 
+    center = FALSE)), list(outcome)]
+ggplot(tabulationStateCategory, aes(x = outcome, y = valueScaled, fill = eventCategory)) + 
+    geom_bar(alpha = 1, stat = "identity") + coord_polar(theta = "x") + scale_fill_brewer(name = "Category", 
+    palette = "Set1") + scale_x_discrete(name = "", labels = c("F", "I", "P")) + 
+    scale_y_continuous(name = "", labels = NULL) + facet_wrap(~state, nrow = 5, 
+    ncol = 10) + labs(title = "Comparison of states on outcomes from storms and other severe weather events") + 
+    theme(legend.position = "top") + theme(axis.ticks.y = element_blank(), panel.grid = element_blank())
 ```
 
 ![plot of chunk smallmultiples](figure/smallmultiples.png) 
@@ -1145,8 +1153,8 @@ tabulation <- tabulation[order(value, decreasing = TRUE)]
 print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
-<!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 17:22:53 2014 -->
+<!-- html table generated in R 3.1.0 by xtable 1.7-3 package -->
+<!-- Thu May 22 09:04:55 2014 -->
 <TABLE border=1>
 <TR> <TH> state </TH> <TH> value </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD> IL </TD> <TD> 998 </TD> <TD> Extreme temperature </TD> </TR>
@@ -1170,8 +1178,8 @@ tabulation <- tabulation[order(value, decreasing = TRUE)]
 print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
-<!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 17:22:53 2014 -->
+<!-- html table generated in R 3.1.0 by xtable 1.7-3 package -->
+<!-- Thu May 22 09:04:55 2014 -->
 <TABLE border=1>
 <TR> <TH> state </TH> <TH> value </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD> TX </TD> <TD> 6,951 </TD> <TD> Flood </TD> </TR>
@@ -1195,8 +1203,8 @@ tabulation <- tabulation[order(value, decreasing = TRUE)]
 print(xtable(tabulation, digits = 0), type = "html", include.rownames = FALSE)
 ```
 
-<!-- html table generated in R 3.0.2 by xtable 1.7-1 package -->
-<!-- Mon May 19 17:22:53 2014 -->
+<!-- html table generated in R 3.1.0 by xtable 1.7-3 package -->
+<!-- Thu May 22 09:04:55 2014 -->
 <TABLE border=1>
 <TR> <TH> state </TH> <TH> value </TH> <TH> eventCategory </TH>  </TR>
   <TR> <TD> CA </TD> <TD> $117.4 billion </TD> <TD> Flood </TD> </TR>

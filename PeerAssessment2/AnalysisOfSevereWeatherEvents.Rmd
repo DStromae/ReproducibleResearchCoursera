@@ -313,18 +313,30 @@ tabulationState <- tabulationState[, rank := abs(rank(value, ties.method="random
 
 ## Results
 
-Plot each outcome by state.
+Plot each state as a [coxcomb](http://understandinguncertainty.org/coxcombs), or rose.
+Each rose shows the magnitude of each outcome
+* **F**atalities, at the 2 o'clock position
+* **I**njuries, at the 6 o'clock position, and
+* **P**roperty damage, at the 10 o'clock position
+
+A rose can show which states suffer very little (e.g., Hawaii), from a single outcome (e.g., Illinois), from two outcomes (e.g., Missouri), or all three outcomes (e.g., Florida).
+
 The color of each bar segment corresponds to event category.
 The outcomes combine data from `r minYear` to `r maxYear`.
 
-```{r smallmultiples, fig.width=15}
-ggplot(tabulationStateCategory, aes(x=state, y=value, fill=eventCategory)) +
-  geom_bar(alpha=1/2, stat="identity") +
+```{r smallmultiples, fig.width=10}
+tabulationStateCategory <- tabulationStateCategory[, valueScaled := scale(value, center=FALSE), list(outcome)]
+ggplot(tabulationStateCategory, aes(x=outcome, y=valueScaled, fill=eventCategory)) +
+  geom_bar(alpha=1, stat="identity") +
+  coord_polar(theta="x") +
   scale_fill_brewer(name="Category", palette="Set1") +
-  scale_x_discrete(name="") +
-  scale_y_continuous(name="") +
-  facet_wrap(~ outcome, scales="free", nrow=3, ncol=1) +
-  theme(legend.position="bottom")
+  scale_x_discrete(name="", labels=c("F", "I", "P")) +
+  scale_y_continuous(name="", labels=NULL) +
+  facet_wrap(~ state, nrow=5, ncol=10) +
+  labs(title="Comparison of states on outcomes from storms and other severe weather events") +
+  theme(legend.position="top") +
+  theme(axis.ticks.y=element_blank(),
+        panel.grid=element_blank())
 ```
 
 Tabulate the highest ranking state for each outcome.
